@@ -1,9 +1,9 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import Layout from './components/Layout.jsx';
-import GeneratePage from './pages/GeneratePage.jsx';
-import SessionPage from './pages/SessionPage.jsx';
-import HistoryPage from './pages/HistoryPage.jsx';
-import AdminPage from './pages/AdminPage.jsx';
+import Layout from './components/Layout.tsx';
+import GeneratePage from './pages/GeneratePage.tsx';
+import SessionPage from './pages/SessionPage.tsx';
+import HistoryPage from './pages/HistoryPage.tsx';
+import AdminPage from './pages/AdminPage.tsx';
 
 export default function App() {
   return (

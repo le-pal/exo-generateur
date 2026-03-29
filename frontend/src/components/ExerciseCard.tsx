@@ -1,21 +1,32 @@
 import { useState, useEffect } from 'react';
+import type { ExerciseView } from '../types/api.ts';
 
-function FillBlankInput({ question, value, onChange, disabled }) {
-  // Split question by [BLANK] and render inputs inline
+// ── Fill blank ────────────────────────────────────────────────────────────────
+
+interface FillBlankInputProps {
+  question: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+}
+
+function FillBlankInput({ question, value, onChange, disabled }: FillBlankInputProps) {
   const parts = question.split('[BLANK]');
-  const [values, setValues] = useState(() => {
+  const [values, setValues] = useState<string[]>(() => {
     if (value) return value.split(',').map(v => v.trim());
-    return Array(parts.length - 1).fill('');
+    return Array<string>(parts.length - 1).fill('');
   });
 
   useEffect(() => {
     onChange(values.join(', '));
-  }, [values]); // eslint-disable-line
+  }, [values]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const update = (i, v) => {
-    const next = [...values];
-    next[i] = v;
-    setValues(next);
+  const update = (i: number, v: string) => {
+    setValues(prev => {
+      const next = [...prev];
+      next[i] = v;
+      return next;
+    });
   };
 
   return (
@@ -27,8 +38,8 @@ function FillBlankInput({ question, value, onChange, disabled }) {
             <input
               type="text"
               className="inline-block border-b-2 border-blue-400 bg-transparent mx-1 px-1 w-24 text-blue-700 focus:outline-none focus:border-blue-600"
-              value={values[i] || ''}
-              onChange={(e) => update(i, e.target.value)}
+              value={values[i] ?? ''}
+              onChange={e => update(i, e.target.value)}
               disabled={disabled}
             />
           )}
@@ -38,10 +49,20 @@ function FillBlankInput({ question, value, onChange, disabled }) {
   );
 }
 
-export default function ExerciseCard({ exercise, index, onAnswer, disabled, showCorrection }) {
-  const [answer, setAnswer] = useState(exercise.answer?.student_answer ?? '');
+// ── Exercise card ─────────────────────────────────────────────────────────────
 
-  const handleChange = (val) => {
+interface ExerciseCardProps {
+  exercise: ExerciseView;
+  index: number;
+  onAnswer: (value: string) => void;
+  disabled: boolean;
+  showCorrection: boolean;
+}
+
+export default function ExerciseCard({ exercise, index, onAnswer, disabled, showCorrection }: ExerciseCardProps) {
+  const [answer, setAnswer] = useState<string>(exercise.answer?.student_answer ?? '');
+
+  const handleChange = (val: string) => {
     setAnswer(val);
     onAnswer(val);
   };
@@ -60,22 +81,19 @@ export default function ExerciseCard({ exercise, index, onAnswer, disabled, show
 
   return (
     <div className={`bg-white rounded-xl border-2 ${borderColor} overflow-hidden shadow-sm`}>
-      {/* Header */}
       <div className={`${headerBg} px-5 py-3 flex items-center justify-between`}>
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
             Exercice {index + 1}
           </span>
-          <span className={`badge ${typeStyle(exercise.type)}`}>
-            {typeLabel(exercise.type)}
-          </span>
+          <span className={`badge ${typeStyle(exercise.type)}`}>{typeLabel(exercise.type)}</span>
           <span className="text-xs text-gray-400">{exercise.points} pt{exercise.points > 1 ? 's' : ''}</span>
         </div>
         {showCorrection && exercise.answer && (
           <div className="flex items-center gap-1">
             {isCorrect
-              ? <span className="text-green-600 font-semibold text-sm flex items-center gap-1">✓ Correct</span>
-              : <span className="text-red-600 font-semibold text-sm flex items-center gap-1">✗ Incorrect</span>
+              ? <span className="text-green-600 font-semibold text-sm">✓ Correct</span>
+              : <span className="text-red-600 font-semibold text-sm">✗ Incorrect</span>
             }
             {score !== null && score !== undefined && !isCorrect && score > 0 && (
               <span className="text-amber-600 text-xs">({Math.round(score * 100)}%)</span>
@@ -84,36 +102,29 @@ export default function ExerciseCard({ exercise, index, onAnswer, disabled, show
         )}
       </div>
 
-      {/* Body */}
       <div className="px-5 py-4 space-y-4">
-        {/* Question */}
         {exercise.type === 'fill_blank' ? (
-          <FillBlankInput
-            question={exercise.question}
-            value={answer}
-            onChange={handleChange}
-            disabled={disabled}
-          />
+          <FillBlankInput question={exercise.question} value={answer} onChange={handleChange} disabled={disabled} />
         ) : (
           <p className="text-gray-800 leading-relaxed">{exercise.question}</p>
         )}
 
-        {/* Answer input */}
         {exercise.type === 'mcq' && (
           <div className="space-y-2">
-            {(exercise.options || []).map((opt, i) => {
+            {(exercise.options ?? []).map((opt, i) => {
               const isSelected = answer === opt;
               const isRight = showCorrection && opt === exercise.correct_answer;
               const isWrong = showCorrection && isSelected && opt !== exercise.correct_answer;
               return (
                 <label
                   key={i}
-                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors
-                    ${isRight ? 'bg-green-50 border-green-300' : ''}
-                    ${isWrong ? 'bg-red-50 border-red-300' : ''}
-                    ${!isRight && !isWrong ? 'border-gray-200 hover:bg-gray-50' : ''}
-                    ${disabled ? 'cursor-default' : ''}
-                  `}
+                  className={[
+                    'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
+                    isRight ? 'bg-green-50 border-green-300' : '',
+                    isWrong ? 'bg-red-50 border-red-300' : '',
+                    !isRight && !isWrong ? 'border-gray-200 hover:bg-gray-50' : '',
+                    disabled ? 'cursor-default' : '',
+                  ].join(' ')}
                 >
                   <input
                     type="radio"
@@ -140,7 +151,7 @@ export default function ExerciseCard({ exercise, index, onAnswer, disabled, show
             rows={3}
             placeholder="Ta réponse…"
             value={answer}
-            onChange={(e) => handleChange(e.target.value)}
+            onChange={e => handleChange(e.target.value)}
             disabled={disabled}
           />
         )}
@@ -151,18 +162,15 @@ export default function ExerciseCard({ exercise, index, onAnswer, disabled, show
             className="input w-40"
             placeholder="0"
             value={answer}
-            onChange={(e) => handleChange(e.target.value)}
+            onChange={e => handleChange(e.target.value)}
             disabled={disabled}
             step="any"
           />
         )}
 
-        {/* Correction block */}
         {showCorrection && correction && (
           <div className={`rounded-lg p-4 text-sm leading-relaxed ${isCorrect ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-900'}`}>
-            <p className="font-semibold mb-1">
-              {isCorrect ? 'Explication' : 'Correction'}
-            </p>
+            <p className="font-semibold mb-1">{isCorrect ? 'Explication' : 'Correction'}</p>
             <p>{correction}</p>
           </div>
         )}
@@ -171,15 +179,17 @@ export default function ExerciseCard({ exercise, index, onAnswer, disabled, show
   );
 }
 
-function typeLabel(type) {
-  return { mcq: 'QCM', text: 'Rédaction', number: 'Calcul', fill_blank: 'Compléter' }[type] || type;
+function typeLabel(type: string): string {
+  const map: Record<string, string> = { mcq: 'QCM', text: 'Rédaction', number: 'Calcul', fill_blank: 'Compléter' };
+  return map[type] ?? type;
 }
 
-function typeStyle(type) {
-  return {
+function typeStyle(type: string): string {
+  const map: Record<string, string> = {
     mcq: 'bg-purple-100 text-purple-700',
     text: 'bg-blue-100 text-blue-700',
     number: 'bg-orange-100 text-orange-700',
     fill_blank: 'bg-teal-100 text-teal-700',
-  }[type] || 'bg-gray-100 text-gray-600';
+  };
+  return map[type] ?? 'bg-gray-100 text-gray-600';
 }

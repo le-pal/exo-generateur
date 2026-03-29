@@ -1,15 +1,16 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getStudent, getStudentSessions } from '../api/client.js';
+import { getStudent, getStudentSessions } from '../api/client.ts';
+import type { StudentSessionSummary } from '../types/api.ts';
 
 export default function HistoryPage() {
-  const { studentId } = useParams();
+  const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
 
-  const { data: student } = useQuery({ queryKey: ['student', studentId], queryFn: () => getStudent(studentId) });
+  const { data: student } = useQuery({ queryKey: ['student', studentId], queryFn: () => getStudent(Number(studentId)) });
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['sessions', studentId],
-    queryFn: () => getStudentSessions(studentId),
+    queryFn: () => getStudentSessions(Number(studentId)),
   });
 
   if (isLoading) return <div className="text-gray-500">Chargement…</div>;
@@ -19,9 +20,7 @@ export default function HistoryPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <button onClick={() => navigate(-1)} className="text-sm text-gray-500 hover:text-gray-700 mb-4 flex items-center gap-1">
-        ← Retour
-      </button>
+      <button onClick={() => void navigate(-1)} className="text-sm text-gray-500 hover:text-gray-700 mb-4 flex items-center gap-1">← Retour</button>
 
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -65,17 +64,14 @@ export default function HistoryPage() {
   );
 }
 
-function SessionCard({ session }) {
+function SessionCard({ session }: { session: StudentSessionSummary }) {
   const navigate = useNavigate();
   const scorePercent = session.exercise_count > 0
     ? Math.round((session.correct_count / session.exercise_count) * 100)
     : null;
 
   return (
-    <div
-      className="card hover:shadow-md transition-shadow cursor-pointer"
-      onClick={() => navigate(`/session/${session.id}`)}
-    >
+    <div className="card hover:shadow-md transition-shadow cursor-pointer" onClick={() => void navigate(`/session/${session.id}`)}>
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
@@ -87,7 +83,6 @@ function SessionCard({ session }) {
             {new Date(session.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
-
         <div className="ml-4 text-right flex-shrink-0">
           {session.status === 'corrected' && scorePercent !== null ? (
             <div>
@@ -101,22 +96,19 @@ function SessionCard({ session }) {
           )}
         </div>
       </div>
-
       {session.status === 'in_progress' && (
-        <div className="mt-3">
-          <span className="text-xs text-amber-600 font-medium">Reprendre →</span>
-        </div>
+        <div className="mt-3"><span className="text-xs text-amber-600 font-medium">Reprendre →</span></div>
       )}
     </div>
   );
 }
 
-function difficultyStyle(d) {
-  return { facile: 'bg-green-100 text-green-700', normal: 'bg-blue-100 text-blue-700', difficile: 'bg-red-100 text-red-700' }[d] || '';
+function difficultyStyle(d: string): string {
+  return { facile: 'bg-green-100 text-green-700', normal: 'bg-blue-100 text-blue-700', difficile: 'bg-red-100 text-red-700' }[d] ?? '';
 }
-function statusStyle(s) {
-  return { in_progress: 'bg-amber-100 text-amber-700', completed: 'bg-gray-100 text-gray-600', corrected: 'bg-green-100 text-green-700' }[s] || '';
+function statusStyle(s: string): string {
+  return { in_progress: 'bg-amber-100 text-amber-700', completed: 'bg-gray-100 text-gray-600', corrected: 'bg-green-100 text-green-700' }[s] ?? '';
 }
-function statusLabel(s) {
-  return { in_progress: 'En cours', completed: 'Terminé', corrected: 'Corrigé' }[s] || s;
+function statusLabel(s: string): string {
+  return { in_progress: 'En cours', completed: 'Terminé', corrected: 'Corrigé' }[s] ?? s;
 }

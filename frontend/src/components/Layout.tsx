@@ -5,7 +5,6 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 text-blue-600 font-bold text-lg hover:text-blue-700">
@@ -17,11 +16,9 @@ export default function Layout() {
           </Link>
 
           <nav className="flex items-center gap-2">
-            <Link to="/" className="btn-ghost text-sm px-3 py-1.5">
-              Générer
-            </Link>
+            <Link to="/" className="btn-ghost text-sm px-3 py-1.5">Générer</Link>
             <button
-              onClick={() => navigate('/admin')}
+              onClick={() => void navigate('/admin')}
               className="btn-ghost text-sm px-3 py-1.5 flex items-center gap-1"
               title="Administration"
             >
@@ -36,7 +33,6 @@ export default function Layout() {
         </div>
       </header>
 
-      {/* Main */}
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-6">
         <Outlet />
       </main>
