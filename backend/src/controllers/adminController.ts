@@ -43,4 +43,9 @@ export const updatePrompt = handle((req) => {
   return { ok: true };
 });
 
+export const testApiKey = handle(async (req) => {
+  const provider = Array.isArray(req.params['provider']) ? req.params['provider'][0]! : req.params['provider']!;
+  return adminService.testApiKey(provider);
+});
+
 export const getReferenceData = handle(() => adminService.getReferenceData());

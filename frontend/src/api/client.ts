@@ -43,6 +43,9 @@ export const getApiKeys = (): Promise<ApiKeyInfo[]> => api.get('/admin/api-keys'
 export const updateApiKey = (provider: string, data: { api_key?: string; active?: boolean }): Promise<{ ok: boolean }> =>
   api.put(`/admin/api-keys/${provider}`, data).then(r => r.data);
 
+export const testApiKey = (provider: string): Promise<{ ok: boolean; error?: string }> =>
+  api.post(`/admin/api-keys/${provider}/test`).then(r => r.data);
+
 export const getPrompts = (): Promise<Prompt[]> => api.get('/admin/prompts').then(r => r.data);
 export const getPrompt = (name: string): Promise<Prompt> => api.get(`/admin/prompts/${name}`).then(r => r.data);
 export const updatePrompt = (name: string, data: { content?: string; description?: string }): Promise<{ ok: boolean }> =>

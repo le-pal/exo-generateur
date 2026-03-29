@@ -82,6 +82,35 @@ function callProvider(provider: LlmModel, apiKey: string, promptText: string, im
     : callClaude(apiKey, promptText, images);
 }
 
+// ── Provider test ─────────────────────────────────────────────────────────────
+
+export interface TestResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function testProvider(provider: LlmModel, apiKey: string): Promise<TestResult> {
+  try {
+    if (provider === 'claude') {
+      const client = new Anthropic({ apiKey });
+      await client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 10,
+        messages: [{ role: 'user', content: 'Say "ok"' }],
+      });
+    } else {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      await model.generateContent('Say "ok"');
+    }
+    return { ok: true };
+  } catch (err) {
+    const raw = err as { message?: string; status?: number; error?: { message?: string } };
+    const message = raw.error?.message ?? raw.message ?? 'Erreur inconnue';
+    return { ok: false, error: message };
+  }
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 interface GenerateExercisesInput {

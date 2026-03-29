@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   getStudents, createStudent, updateStudent, deleteStudent,
-  getApiKeys, updateApiKey,
+  getApiKeys, updateApiKey, testApiKey,
   getPrompts, updatePrompt,
   getSettings, updateSettings,
   getReferenceData,
@@ -147,20 +147,44 @@ const PROVIDERS = [
   { id: 'gemini', label: 'Gemini (Google)', placeholder: 'AIza…' },
 ] as const;
 
+interface TestState {
+  status: 'idle' | 'testing' | 'ok' | 'error';
+  error?: string;
+}
+
 function ApiKeysTab() {
   const qc = useQueryClient();
   const { data: keys = [] } = useQuery<ApiKeyInfo[]>({ queryKey: ['api-keys'], queryFn: getApiKeys });
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings });
   const [keyValues, setKeyValues] = useState<Record<string, string>>({});
   const [showKey, setShowKey] = useState<Record<string, boolean>>({});
-  const [saved, setSaved] = useState<Record<string, boolean>>({});
+  const [testState, setTestState] = useState<Record<string, TestState>>({});
+
+  const runTest = async (provider: string) => {
+    setTestState(s => ({ ...s, [provider]: { status: 'testing' } }));
+    try {
+      const result = await testApiKey(provider);
+      setTestState(s => ({
+        ...s,
+        [provider]: result.ok
+          ? { status: 'ok' }
+          : { status: 'error', error: result.error },
+      }));
+    } catch {
+      setTestState(s => ({ ...s, [provider]: { status: 'error', error: 'Erreur réseau' } }));
+    }
+  };
 
   const saveMutation = useMutation({
-    mutationFn: ({ provider, api_key }: { provider: string; api_key: string }) => updateApiKey(provider, { api_key }),
+    mutationFn: ({ provider, api_key }: { provider: string; api_key: string }) =>
+      updateApiKey(provider, { api_key }),
     onSuccess: (_, { provider }) => {
       void qc.invalidateQueries({ queryKey: ['api-keys'] });
-      setSaved(s => ({ ...s, [provider]: true }));
-      setTimeout(() => setSaved(s => ({ ...s, [provider]: false })), 2000);
+      setKeyValues(v => ({ ...v, [provider]: '' }));
+      void runTest(provider);
+    },
+    onError: (_err, { provider }) => {
+      setTestState(s => ({ ...s, [provider]: { status: 'error', error: 'Erreur lors de la sauvegarde' } }));
     },
   });
 
@@ -191,12 +215,16 @@ function ApiKeysTab() {
       {PROVIDERS.map(p => {
         const keyRow = keys.find(k => k.provider === p.id);
         const currentVal = keyValues[p.id] ?? '';
+        const ts = testState[p.id] ?? { status: 'idle' };
+        const isSaving = saveMutation.isPending && saveMutation.variables?.provider === p.id;
+
         return (
           <div key={p.id} className="card">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-semibold text-gray-800">{p.label}</h2>
-              {keyRow?.is_set === 1 && <span className="badge bg-green-100 text-green-700">Clé configurée</span>}
+              <ApiKeyStatusBadge keyRow={keyRow} testState={ts} />
             </div>
+
             <div className="flex gap-3">
               <div className="relative flex-1">
                 <input
@@ -212,12 +240,35 @@ function ApiKeysTab() {
                 </button>
               </div>
               <button
-                className={`btn-primary whitespace-nowrap ${saved[p.id] ? 'bg-green-500 hover:bg-green-600' : ''}`}
+                className="btn-primary whitespace-nowrap"
                 onClick={() => saveMutation.mutate({ provider: p.id, api_key: currentVal })}
-                disabled={saveMutation.isPending || !currentVal}>
-                {saved[p.id] ? '✓ Sauvé' : 'Sauvegarder'}
+                disabled={isSaving || ts.status === 'testing' || !currentVal}>
+                {isSaving || ts.status === 'testing' ? (
+                  <span className="flex items-center gap-1.5">
+                    <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z" />
+                    </svg>
+                    {isSaving ? 'Sauvegarde…' : 'Test en cours…'}
+                  </span>
+                ) : 'Sauvegarder & tester'}
               </button>
             </div>
+
+            {/* Test result banner */}
+            {ts.status === 'ok' && (
+              <div className="mt-3 flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                <span className="text-base">✓</span>
+                <span>Clé valide — connexion au modèle réussie</span>
+              </div>
+            )}
+            {ts.status === 'error' && (
+              <div className="mt-3 flex items-start gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <span className="text-base flex-shrink-0">✗</span>
+                <span><span className="font-medium">Clé invalide : </span>{ts.error}</span>
+              </div>
+            )}
+
             <p className="text-xs text-gray-400 mt-2">
               {p.id === 'claude' ? 'Obtenez votre clé sur console.anthropic.com' : 'Obtenez votre clé sur aistudio.google.com'}
             </p>
@@ -226,6 +277,14 @@ function ApiKeysTab() {
       })}
     </div>
   );
+}
+
+function ApiKeyStatusBadge({ keyRow, testState }: { keyRow: ApiKeyInfo | undefined; testState: TestState }) {
+  if (testState.status === 'ok') return <span className="badge bg-green-100 text-green-700">✓ Clé valide</span>;
+  if (testState.status === 'error') return <span className="badge bg-red-100 text-red-700">✗ Clé invalide</span>;
+  if (testState.status === 'testing') return <span className="badge bg-blue-100 text-blue-700">Test…</span>;
+  if (keyRow?.is_set === 1) return <span className="badge bg-gray-100 text-gray-600">Clé configurée</span>;
+  return null;
 }
 
 // ── Prompts ───────────────────────────────────────────────────────────────────

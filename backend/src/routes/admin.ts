@@ -8,6 +8,7 @@ router.put('/settings', ctrl.updateSettings);
 
 router.get('/api-keys', ctrl.getApiKeys);
 router.put('/api-keys/:provider', ctrl.updateApiKey);
+router.post('/api-keys/:provider/test', ctrl.testApiKey);
 
 router.get('/prompts', ctrl.getPrompts);
 router.get('/prompts/:name', ctrl.getPrompt);

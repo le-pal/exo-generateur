@@ -1,9 +1,10 @@
 import * as settingsRepo from '../repositories/settingsRepository.js';
 import * as apiKeyRepo from '../repositories/apiKeyRepository.js';
 import * as promptRepo from '../repositories/promptRepository.js';
+import { testProvider } from './llm.js';
 import { LEVELS, SUBJECTS, DIFFICULTIES } from '../data/subjects.js';
 import { AppError } from '../types/index.js';
-import type { ApiKeyRow, Prompt } from '../types/index.js';
+import type { ApiKeyRow, Prompt, LlmModel } from '../types/index.js';
 import type { Level, Subject, DifficultyOption } from '../data/subjects.js';
 
 // ── Settings ──────────────────────────────────────────────────────────────────
@@ -26,6 +27,12 @@ export function updateApiKey(provider: string, data: { api_key?: string; active?
   const rows = apiKeyRepo.findAll();
   if (!rows.find(r => r.provider === provider)) throw new AppError('Provider introuvable', 404);
   apiKeyRepo.update(provider, data);
+}
+
+export async function testApiKey(provider: string) {
+  const key = apiKeyRepo.findKeyByProvider(provider);
+  if (!key) return { ok: false, error: 'Aucune clé configurée pour ce provider' };
+  return testProvider(provider as LlmModel, key);
 }
 
 // ── Prompts ───────────────────────────────────────────────────────────────────
