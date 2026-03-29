@@ -77,4 +77,4 @@ echo ">>> Build et démarrage..."
 docker compose up -d --build
 
 echo ""
-echo "✓ Déployé sur https://exo.cynique.com"
+echo "✓ Déployé sur https://exo.scheffer.top"
