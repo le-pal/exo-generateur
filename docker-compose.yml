@@ -1,43 +1,40 @@
 services:
-  backend:
+  app:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
-    container_name: exo-backend
+    container_name: exo-generateur
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      PORT: 3001
       DB_PATH: /data/exo.db
-      FRONTEND_URL: http://localhost
     volumes:
       - exo_data:/data
-    networks:
-      - exo_net
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: exo-frontend
+  caddy:
+    image: caddy:alpine
+    container_name: exo-caddy
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - exo_net
+      - app
 
 volumes:
   exo_data:
     driver: local
-
-networks:
-  exo_net:
-    driver: bridge
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local

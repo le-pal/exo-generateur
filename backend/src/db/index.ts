@@ -92,7 +92,7 @@ function createSchema(db: Database.Database): void {
 function seedDefaultData(db: Database.Database): void {
   const modelSetting = db.prepare('SELECT value FROM settings WHERE key = ?').get('default_model');
   if (!modelSetting) {
-    db.prepare("INSERT INTO settings (key, value) VALUES ('default_model', 'claude')").run();
+    db.prepare("INSERT INTO settings (key, value) VALUES ('default_model', 'claude-sonnet-4-6')").run();
   }
 
   const genPrompt = db.prepare('SELECT id FROM prompts WHERE name = ?').get('generation');

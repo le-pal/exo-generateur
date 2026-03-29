@@ -32,8 +32,7 @@ export default function GeneratePage() {
 
   const subjects = ref?.subjects ?? [];
   const difficulties = ref?.difficulties ?? [];
-
-  const selectedStudent = students.find(s => String(s.id) === form.student_id);
+const selectedStudent = students.find(s => String(s.id) === form.student_id);
   const filteredSubjects = selectedStudent
     ? subjects.filter(s => s.levels === 'all' || (Array.isArray(s.levels) && s.levels.includes(selectedStudent.level)))
     : subjects;

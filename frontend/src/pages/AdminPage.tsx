@@ -155,7 +155,8 @@ interface TestState {
 function ApiKeysTab() {
   const qc = useQueryClient();
   const { data: keys = [] } = useQuery<ApiKeyInfo[]>({ queryKey: ['api-keys'], queryFn: getApiKeys });
-  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings });
+  const { data: settings } = useQuery<Record<string, string>>({ queryKey: ['settings'], queryFn: getSettings });
+  const { data: ref } = useQuery({ queryKey: ['reference'], queryFn: getReferenceData });
   const [keyValues, setKeyValues] = useState<Record<string, string>>({});
   const [showKey, setShowKey] = useState<Record<string, boolean>>({});
   const [testState, setTestState] = useState<Record<string, TestState>>({});
@@ -193,23 +194,38 @@ function ApiKeysTab() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['settings'] }),
   });
 
+  const allModels = ref?.models ?? [];
+  const currentModel = settings?.['default_model'] ?? '';
+
   return (
     <div className="space-y-4">
       <div className="card">
         <h2 className="font-semibold text-gray-800 mb-3">Modèle par défaut</h2>
-        <div className="flex gap-3">
-          {PROVIDERS.map(p => {
-            const active = settings?.default_model === p.id;
-            return (
-              <button key={p.id} onClick={() => modelMutation.mutate(p.id)}
-                className={`flex-1 rounded-xl border-2 p-4 text-left transition-all ${active ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                <div className="font-semibold text-gray-800">{p.label}</div>
-                {active && <div className="text-xs text-blue-600 mt-1 font-medium">✓ Sélectionné</div>}
-              </button>
-            );
-          })}
-        </div>
-        <p className="text-xs text-gray-400 mt-2">Ce modèle sera utilisé pour toutes les générations par défaut.</p>
+        {allModels.length === 0 ? (
+          <p className="text-sm text-amber-600">Aucune clé API active — configurez une clé ci-dessous pour accéder aux modèles.</p>
+        ) : (
+          <div className="space-y-3">
+            {PROVIDERS.filter(p => allModels.some(m => m.provider === p.id)).map(p => (
+              <div key={p.id}>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">{p.label}</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {allModels.filter(m => m.provider === p.id).map(m => {
+                    const active = currentModel === m.id;
+                    return (
+                      <button key={m.id} onClick={() => modelMutation.mutate(m.id)}
+                        className={`rounded-xl border-2 p-3 text-left transition-all ${active ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                        <div className={`font-medium text-sm ${active ? 'text-blue-800' : 'text-gray-800'}`}>{m.label}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">{m.description}</div>
+                        {active && <div className="text-xs text-blue-600 mt-1 font-semibold">✓ Sélectionné</div>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="text-xs text-gray-400 mt-3">Ce modèle sera utilisé pour toutes les générations.</p>
       </div>
 
       {PROVIDERS.map(p => {

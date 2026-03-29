@@ -1,5 +1,49 @@
 import { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import type { ExerciseView } from '../types/api.ts';
+
+const MD_REMARK = [remarkMath];
+const MD_REHYPE = [rehypeKatex];
+
+function Md({ children, inline }: { children: string; inline?: boolean }) {
+  if (inline) {
+    return (
+      <ReactMarkdown
+        remarkPlugins={MD_REMARK}
+        rehypePlugins={MD_REHYPE}
+        components={{
+          p: ({ children }) => <span>{children}</span>,
+          code: ({ children }) => <code className="bg-gray-100 rounded px-1 text-sm font-mono">{children}</code>,
+          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+          em: ({ children }) => <em>{children}</em>,
+        }}
+      >
+        {children}
+      </ReactMarkdown>
+    );
+  }
+  return (
+    <ReactMarkdown
+      remarkPlugins={MD_REMARK}
+      rehypePlugins={MD_REHYPE}
+      components={{
+        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+        ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
+        li: ({ children }) => <li>{children}</li>,
+        code: ({ children }) => <code className="bg-gray-100 rounded px-1 text-sm font-mono">{children}</code>,
+        pre: ({ children }) => <pre className="bg-gray-100 rounded p-3 overflow-x-auto text-sm font-mono mb-2">{children}</pre>,
+        strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+        em: ({ children }) => <em>{children}</em>,
+        blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-300 pl-3 italic text-gray-600 mb-2">{children}</blockquote>,
+      }}
+    >
+      {children}
+    </ReactMarkdown>
+  );
+}
 
 // ── Fill blank ────────────────────────────────────────────────────────────────
 
@@ -106,7 +150,9 @@ export default function ExerciseCard({ exercise, index, onAnswer, disabled, show
         {exercise.type === 'fill_blank' ? (
           <FillBlankInput question={exercise.question} value={answer} onChange={handleChange} disabled={disabled} />
         ) : (
-          <p className="text-gray-800 leading-relaxed">{exercise.question}</p>
+          <div className="text-gray-800 leading-relaxed">
+            <Md>{exercise.question}</Md>
+          </div>
         )}
 
         {exercise.type === 'mcq' && (
@@ -136,7 +182,7 @@ export default function ExerciseCard({ exercise, index, onAnswer, disabled, show
                     className="accent-blue-600"
                   />
                   <span className={`text-sm ${isRight ? 'text-green-700 font-medium' : isWrong ? 'text-red-700' : 'text-gray-700'}`}>
-                    {opt}
+                    <Md inline>{opt}</Md>
                   </span>
                   {isRight && <span className="ml-auto text-green-500 text-xs">✓ Bonne réponse</span>}
                 </label>
@@ -171,7 +217,7 @@ export default function ExerciseCard({ exercise, index, onAnswer, disabled, show
         {showCorrection && correction && (
           <div className={`rounded-lg p-4 text-sm leading-relaxed ${isCorrect ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-900'}`}>
             <p className="font-semibold mb-1">{isCorrect ? 'Explication' : 'Correction'}</p>
-            <p>{correction}</p>
+            <Md>{correction}</Md>
           </div>
         )}
       </div>

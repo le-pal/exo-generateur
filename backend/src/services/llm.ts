@@ -3,8 +3,9 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { findKeyByProvider } from '../repositories/apiKeyRepository.js';
 import { findByName } from '../repositories/promptRepository.js';
 import { AppError } from '../types/index.js';
+import { getProvider } from '../data/models.js';
 import type {
-  LlmModel,
+  LlmProvider,
   Difficulty,
   ExerciseType,
   ImagePayload,
@@ -14,7 +15,7 @@ import type {
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
-function resolveApiKey(provider: LlmModel): string {
+function resolveApiKey(provider: LlmProvider): string {
   const key = findKeyByProvider(provider);
   if (!key) throw new AppError(`Clé API ${provider} non configurée`, 503);
   return key;
@@ -43,9 +44,35 @@ function parseJsonResponse<T>(text: string): T {
   return JSON.parse(cleaned) as T;
 }
 
+/**
+ * Extracts a human-readable message from provider SDK errors.
+ * Anthropic: err.error.error.message  (nested)
+ * Gemini: err.message or err.errorDetails[].message
+ */
+function extractErrorMessage(err: unknown): string {
+  if (typeof err !== 'object' || err === null) return String(err);
+  const e = err as Record<string, unknown>;
+
+  // Anthropic SDK: { error: { error: { message } } }
+  const nested = (e['error'] as Record<string, unknown> | undefined);
+  if (nested) {
+    const inner = (nested['error'] as Record<string, unknown> | undefined);
+    if (typeof inner?.['message'] === 'string') return inner['message'];
+    if (typeof nested['message'] === 'string') return nested['message'];
+  }
+
+  // Gemini SDK: { message, errorDetails }
+  if (typeof e['message'] === 'string') {
+    // Strip leading "XXX " status prefix if present, e.g. "400 Bad Request"
+    return e['message'].replace(/^\d{3} /, '');
+  }
+
+  return 'Erreur inconnue';
+}
+
 // ── Providers ─────────────────────────────────────────────────────────────────
 
-async function callClaude(apiKey: string, promptText: string, images: ImagePayload[]): Promise<string> {
+async function callClaude(apiKey: string, modelId: string, promptText: string, images: ImagePayload[]): Promise<string> {
   const client = new Anthropic({ apiKey });
   const content: Anthropic.MessageParam['content'] = [
     ...images.map(
@@ -58,16 +85,16 @@ async function callClaude(apiKey: string, promptText: string, images: ImagePaylo
     { type: 'text', text: promptText } satisfies Anthropic.TextBlockParam,
   ];
   const message = await client.messages.create({
-    model: 'claude-opus-4-6',
+    model: modelId,
     max_tokens: 4096,
     messages: [{ role: 'user', content }],
   });
   return (message.content[0] as Anthropic.TextBlock).text;
 }
 
-async function callGemini(apiKey: string, promptText: string, images: ImagePayload[]): Promise<string> {
+async function callGemini(apiKey: string, modelId: string, promptText: string, images: ImagePayload[]): Promise<string> {
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const model = genAI.getGenerativeModel({ model: modelId });
   const parts = [
     ...images.map(img => ({ inlineData: { mimeType: img.mediaType, data: img.data } })),
     { text: promptText },
@@ -76,10 +103,11 @@ async function callGemini(apiKey: string, promptText: string, images: ImagePaylo
   return result.response.text();
 }
 
-function callProvider(provider: LlmModel, apiKey: string, promptText: string, images: ImagePayload[]): Promise<string> {
+function callProvider(modelId: string, apiKey: string, promptText: string, images: ImagePayload[]): Promise<string> {
+  const provider = getProvider(modelId);
   return provider === 'gemini'
-    ? callGemini(apiKey, promptText, images)
-    : callClaude(apiKey, promptText, images);
+    ? callGemini(apiKey, modelId, promptText, images)
+    : callClaude(apiKey, modelId, promptText, images);
 }
 
 // ── Provider test ─────────────────────────────────────────────────────────────
@@ -89,7 +117,7 @@ export interface TestResult {
   error?: string;
 }
 
-export async function testProvider(provider: LlmModel, apiKey: string): Promise<TestResult> {
+export async function testProvider(provider: LlmProvider, apiKey: string): Promise<TestResult> {
   try {
     if (provider === 'claude') {
       const client = new Anthropic({ apiKey });
@@ -105,16 +133,14 @@ export async function testProvider(provider: LlmModel, apiKey: string): Promise<
     }
     return { ok: true };
   } catch (err) {
-    const raw = err as { message?: string; status?: number; error?: { message?: string } };
-    const message = raw.error?.message ?? raw.message ?? 'Erreur inconnue';
-    return { ok: false, error: message };
+    return { ok: false, error: extractErrorMessage(err) };
   }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
 interface GenerateExercisesInput {
-  model: LlmModel;
+  model: string;
   subject: string;
   level: string;
   topic: string;
@@ -125,7 +151,7 @@ interface GenerateExercisesInput {
 }
 
 interface CorrectExercisesInput {
-  model: LlmModel;
+  model: string;
   subject: string;
   level: string;
   exercisesAndAnswers: {
@@ -139,7 +165,7 @@ interface CorrectExercisesInput {
 
 export async function generateExercises(input: GenerateExercisesInput): Promise<LlmGenerationResult> {
   const { model, subject, level, topic, difficulty, numExercises, uploadedContent, images } = input;
-  const apiKey = resolveApiKey(model);
+  const apiKey = resolveApiKey(getProvider(model));
   const template = resolvePromptTemplate('generation');
   const promptText = renderTemplate(template, {
     subject, level, topic, difficulty,
@@ -152,7 +178,7 @@ export async function generateExercises(input: GenerateExercisesInput): Promise<
 
 export async function correctExercises(input: CorrectExercisesInput): Promise<LlmCorrectionResult> {
   const { model, subject, level, exercisesAndAnswers } = input;
-  const apiKey = resolveApiKey(model);
+  const apiKey = resolveApiKey(getProvider(model));
   const template = resolvePromptTemplate('correction');
   const formatted = exercisesAndAnswers
     .map(

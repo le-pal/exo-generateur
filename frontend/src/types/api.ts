@@ -90,8 +90,16 @@ export interface DifficultyOption {
   label: string;
 }
 
+export interface ModelDefinition {
+  id: string;
+  label: string;
+  provider: 'claude' | 'gemini';
+  description: string;
+}
+
 export interface ReferenceData {
   levels: Level[];
   subjects: Subject[];
   difficulties: DifficultyOption[];
+  models: ModelDefinition[];
 }

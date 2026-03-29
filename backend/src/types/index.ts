@@ -9,7 +9,8 @@ export interface Student {
 }
 
 export type SessionStatus = 'in_progress' | 'completed' | 'corrected';
-export type LlmModel = 'claude' | 'gemini';
+export type LlmProvider = 'claude' | 'gemini';
+export type LlmModel = LlmProvider;
 export type Difficulty = 'facile' | 'normal' | 'difficile';
 export type ExerciseType = 'mcq' | 'text' | 'number' | 'fill_blank';
 
@@ -20,7 +21,7 @@ export interface Session {
   topic: string;
   difficulty: Difficulty;
   num_exercises: number;
-  model: LlmModel;
+  model: string; // specific model ID, e.g. 'claude-sonnet-4-6'
   status: SessionStatus;
   created_at: string;
   updated_at: string;

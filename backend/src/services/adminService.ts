@@ -3,8 +3,9 @@ import * as apiKeyRepo from '../repositories/apiKeyRepository.js';
 import * as promptRepo from '../repositories/promptRepository.js';
 import { testProvider } from './llm.js';
 import { LEVELS, SUBJECTS, DIFFICULTIES } from '../data/subjects.js';
+import { MODELS } from '../data/models.js';
 import { AppError } from '../types/index.js';
-import type { ApiKeyRow, Prompt, LlmModel } from '../types/index.js';
+import type { ApiKeyRow, Prompt, LlmProvider } from '../types/index.js';
 import type { Level, Subject, DifficultyOption } from '../data/subjects.js';
 
 // ── Settings ──────────────────────────────────────────────────────────────────
@@ -32,7 +33,7 @@ export function updateApiKey(provider: string, data: { api_key?: string; active?
 export async function testApiKey(provider: string) {
   const key = apiKeyRepo.findKeyByProvider(provider);
   if (!key) return { ok: false, error: 'Aucune clé configurée pour ce provider' };
-  return testProvider(provider as LlmModel, key);
+  return testProvider(provider as LlmProvider, key);
 }
 
 // ── Prompts ───────────────────────────────────────────────────────────────────
@@ -54,6 +55,10 @@ export function updatePrompt(name: string, data: { content?: string; description
 
 // ── Reference data ────────────────────────────────────────────────────────────
 
-export function getReferenceData(): { levels: Level[]; subjects: Subject[]; difficulties: DifficultyOption[] } {
-  return { levels: LEVELS, subjects: SUBJECTS, difficulties: DIFFICULTIES };
+export function getReferenceData() {
+  const activeProviders = new Set(
+    apiKeyRepo.findAll().filter(k => k.active === 1 && k.is_set === 1).map(k => k.provider),
+  );
+  const models = MODELS.filter(m => activeProviders.has(m.provider));
+  return { levels: LEVELS, subjects: SUBJECTS, difficulties: DIFFICULTIES, models };
 }
