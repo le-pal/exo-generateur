@@ -7,15 +7,13 @@ import sessionsRouter from './src/routes/sessions.js';
 import adminRouter from './src/routes/admin.js';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env['PORT'] ?? 3001;
 
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
+app.use(cors({ origin: process.env['FRONTEND_URL'] ?? 'http://localhost:5173' }));
 app.use(express.json({ limit: '20mb' }));
 
-// Init DB
 initDb();
 
-// Routes
 app.use('/api/students', studentsRouter);
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/admin', adminRouter);

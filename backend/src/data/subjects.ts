@@ -1,4 +1,21 @@
-export const LEVELS = [
+export interface Level {
+  value: string;
+  label: string;
+  group: 'Primaire' | 'Collège' | 'Lycée';
+}
+
+export interface Subject {
+  value: string;
+  label: string;
+  levels: 'all' | string[];
+}
+
+export interface DifficultyOption {
+  value: string;
+  label: string;
+}
+
+export const LEVELS: Level[] = [
   { value: 'CP', label: 'CP', group: 'Primaire' },
   { value: 'CE1', label: 'CE1', group: 'Primaire' },
   { value: 'CE2', label: 'CE2', group: 'Primaire' },
@@ -13,7 +30,7 @@ export const LEVELS = [
   { value: 'Terminale', label: 'Terminale', group: 'Lycée' },
 ];
 
-export const SUBJECTS = [
+export const SUBJECTS: Subject[] = [
   { value: 'Français', label: 'Français', levels: 'all' },
   { value: 'Mathématiques', label: 'Mathématiques', levels: 'all' },
   { value: 'Histoire-Géographie', label: 'Histoire-Géographie', levels: 'all' },
@@ -31,7 +48,7 @@ export const SUBJECTS = [
   { value: 'NSI', label: 'NSI (Informatique)', levels: ['1ère', 'Terminale'] },
 ];
 
-export const DIFFICULTIES = [
+export const DIFFICULTIES: DifficultyOption[] = [
   { value: 'facile', label: 'Facile' },
   { value: 'normal', label: 'Normal' },
   { value: 'difficile', label: 'Difficile' },

@@ -3,16 +3,16 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../../data/exo.db');
+const DB_PATH = process.env['DB_PATH'] ?? path.join(__dirname, '../../../data/exo.db');
 
-let db;
+let db: Database.Database;
 
-export function getDb() {
+export function getDb(): Database.Database {
   if (!db) throw new Error('DB not initialized');
   return db;
 }
 
-export function initDb() {
+export function initDb(): void {
   db = new Database(DB_PATH);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
@@ -21,13 +21,12 @@ export function initDb() {
   console.log(`SQLite connected: ${DB_PATH}`);
 }
 
-function createSchema(db) {
+function createSchema(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS students (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       level TEXT NOT NULL DEFAULT '6ème',
-      -- AUTH_PLACEHOLDER: password_hash TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -41,7 +40,6 @@ function createSchema(db) {
       num_exercises INTEGER NOT NULL DEFAULT 5,
       model TEXT NOT NULL DEFAULT 'claude',
       status TEXT NOT NULL DEFAULT 'in_progress',
-      -- status: in_progress | completed | corrected
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -51,10 +49,8 @@ function createSchema(db) {
       session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
       order_num INTEGER NOT NULL,
       type TEXT NOT NULL,
-      -- type: text | mcq | number | fill_blank
       question TEXT NOT NULL,
       options TEXT,
-      -- JSON array for mcq
       correct_answer TEXT NOT NULL,
       points INTEGER NOT NULL DEFAULT 1
     );
@@ -64,7 +60,6 @@ function createSchema(db) {
       exercise_id INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
       student_answer TEXT,
       is_correct INTEGER,
-      -- 0/1/null
       score REAL,
       correction TEXT,
       submitted_at TEXT
@@ -74,7 +69,6 @@ function createSchema(db) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
       type TEXT NOT NULL,
-      -- generation | correction
       content TEXT NOT NULL,
       description TEXT,
       updated_at TEXT DEFAULT (datetime('now'))
@@ -83,7 +77,6 @@ function createSchema(db) {
     CREATE TABLE IF NOT EXISTS api_keys (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       provider TEXT NOT NULL UNIQUE,
-      -- claude | gemini
       api_key TEXT,
       active INTEGER NOT NULL DEFAULT 1,
       updated_at TEXT DEFAULT (datetime('now'))
@@ -96,19 +89,15 @@ function createSchema(db) {
   `);
 }
 
-function seedDefaultData(db) {
-  // Default model setting
+function seedDefaultData(db: Database.Database): void {
   const modelSetting = db.prepare('SELECT value FROM settings WHERE key = ?').get('default_model');
   if (!modelSetting) {
     db.prepare("INSERT INTO settings (key, value) VALUES ('default_model', 'claude')").run();
   }
 
-  // Default prompts
   const genPrompt = db.prepare('SELECT id FROM prompts WHERE name = ?').get('generation');
   if (!genPrompt) {
-    db.prepare(`
-      INSERT INTO prompts (name, type, content, description) VALUES (?, ?, ?, ?)
-    `).run(
+    db.prepare('INSERT INTO prompts (name, type, content, description) VALUES (?, ?, ?, ?)').run(
       'generation',
       'generation',
       `Tu es un professeur expert en {{subject}} pour des élèves de niveau {{level}}.
@@ -145,32 +134,16 @@ Réponds UNIQUEMENT avec du JSON valide, sans markdown, sans explication :
       "options": null,
       "correct_answer": "Réponse attendue détaillée...",
       "points": 2
-    },
-    {
-      "type": "number",
-      "question": "...",
-      "options": null,
-      "correct_answer": "42",
-      "points": 1
-    },
-    {
-      "type": "fill_blank",
-      "question": "La photosynthèse produit du [BLANK] et de l'[BLANK].",
-      "options": null,
-      "correct_answer": "glucose, oxygène",
-      "points": 1
     }
   ]
 }`,
-      'Prompt de génération des exercices'
+      'Prompt de génération des exercices',
     );
   }
 
   const corrPrompt = db.prepare('SELECT id FROM prompts WHERE name = ?').get('correction');
   if (!corrPrompt) {
-    db.prepare(`
-      INSERT INTO prompts (name, type, content, description) VALUES (?, ?, ?, ?)
-    `).run(
+    db.prepare('INSERT INTO prompts (name, type, content, description) VALUES (?, ?, ?, ?)').run(
       'correction',
       'correction',
       `Tu es un professeur bienveillant qui corrige des exercices de {{subject}} pour un élève de niveau {{level}}.
@@ -187,13 +160,7 @@ Réponds UNIQUEMENT avec du JSON valide, sans markdown :
       "exercise_id": 1,
       "is_correct": true,
       "score": 1.0,
-      "explanation": "Bravo ! Tu as bien compris... [explication encourageante]"
-    },
-    {
-      "exercise_id": 2,
-      "is_correct": false,
-      "score": 0.5,
-      "explanation": "Pas tout à fait... La bonne réponse est [ANSWER] parce que [explication pédagogique et encourageante]"
+      "explanation": "Bravo ! Tu as bien compris..."
     }
   ]
 }
@@ -203,17 +170,14 @@ RÈGLES :
 - Sois encourageant et pédagogique, jamais décourageant
 - Pour les questions ouvertes (text), accepte les réponses correctes même si le wording diffère
 - Explique toujours POURQUOI la réponse est correcte ou incorrecte`,
-      'Prompt de correction des exercices'
+      'Prompt de correction des exercices',
     );
   }
 
-  // Default API key placeholders
-  const claudeKey = db.prepare('SELECT id FROM api_keys WHERE provider = ?').get('claude');
-  if (!claudeKey) {
+  if (!db.prepare('SELECT id FROM api_keys WHERE provider = ?').get('claude')) {
     db.prepare("INSERT INTO api_keys (provider, api_key) VALUES ('claude', '')").run();
   }
-  const geminiKey = db.prepare('SELECT id FROM api_keys WHERE provider = ?').get('gemini');
-  if (!geminiKey) {
+  if (!db.prepare('SELECT id FROM api_keys WHERE provider = ?').get('gemini')) {
     db.prepare("INSERT INTO api_keys (provider, api_key) VALUES ('gemini', '')").run();
   }
 }
