@@ -73,6 +73,9 @@ EOF
 
 # ── Build et démarrage ────────────────────────────────────────────────────────
 
+echo ">>> Arrêt des conteneurs existants..."
+docker compose down --remove-orphans 2>/dev/null || true
+
 echo ">>> Build et démarrage..."
 docker compose up -d --build
 
