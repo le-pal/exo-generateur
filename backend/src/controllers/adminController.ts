@@ -30,6 +30,11 @@ export const updateApiKey = handle((req) => {
   return { ok: true };
 });
 
+export const getProviderModels = handle(async (req) => {
+  const provider = Array.isArray(req.params['provider']) ? req.params['provider'][0]! : req.params['provider']!;
+  return adminService.getProviderModels(provider);
+});
+
 export const getPrompts = handle(() => adminService.getPrompts());
 
 export const getPrompt = handle((req) => {
@@ -49,3 +54,10 @@ export const testApiKey = handle(async (req) => {
 });
 
 export const getReferenceData = handle(() => adminService.getReferenceData());
+
+export const getDebugLogs = handle((req) => {
+  const limit = req.query['limit'] ? Number(req.query['limit']) : undefined;
+  return adminService.getDebugLogs(limit);
+});
+
+export const clearDebugLogs = handle(() => adminService.clearDebugLogs());

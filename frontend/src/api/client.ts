@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type {
   Student, SessionView, StudentSessionSummary,
-  Prompt, ApiKeyInfo, ReferenceData,
+  Prompt, ApiKeyInfo, ReferenceData, ModelDefinition, DebugLogsResponse,
 } from '../types/api.ts';
 
 const api = axios.create({
@@ -46,9 +46,18 @@ export const updateApiKey = (provider: string, data: { api_key?: string; active?
 export const testApiKey = (provider: string): Promise<{ ok: boolean; error?: string }> =>
   api.post(`/admin/api-keys/${provider}/test`).then(r => r.data);
 
+export const listProviderModels = (provider: string): Promise<ModelDefinition[]> =>
+  api.get(`/admin/api-keys/${provider}/models`).then(r => r.data);
+
 export const getPrompts = (): Promise<Prompt[]> => api.get('/admin/prompts').then(r => r.data);
 export const getPrompt = (name: string): Promise<Prompt> => api.get(`/admin/prompts/${name}`).then(r => r.data);
 export const updatePrompt = (name: string, data: { content?: string; description?: string }): Promise<{ ok: boolean }> =>
   api.put(`/admin/prompts/${name}`, data).then(r => r.data);
 
 export const getReferenceData = (): Promise<ReferenceData> => api.get('/admin/reference').then(r => r.data);
+
+export const getDebugLogs = (limit?: number): Promise<DebugLogsResponse> =>
+  api.get('/admin/debug/logs', { params: limit ? { limit } : {} }).then(r => r.data);
+
+export const clearDebugLogs = (): Promise<{ ok: boolean }> =>
+  api.delete('/admin/debug/logs').then(r => r.data);

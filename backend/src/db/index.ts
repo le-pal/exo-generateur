@@ -180,4 +180,17 @@ RÈGLES :
   if (!db.prepare('SELECT id FROM api_keys WHERE provider = ?').get('gemini')) {
     db.prepare("INSERT INTO api_keys (provider, api_key) VALUES ('gemini', '')").run();
   }
+  if (!db.prepare('SELECT id FROM api_keys WHERE provider = ?').get('openrouter')) {
+    db.prepare("INSERT INTO api_keys (provider, api_key) VALUES ('openrouter', '')").run();
+  }
+
+  const debugSetting = db.prepare("SELECT value FROM settings WHERE key = 'debug_mode'").get();
+  if (!debugSetting) {
+    db.prepare("INSERT INTO settings (key, value) VALUES ('debug_mode', 'false')").run();
+  }
+
+  const baseUrlSetting = db.prepare("SELECT value FROM settings WHERE key = 'openrouter_base_url'").get();
+  if (!baseUrlSetting) {
+    db.prepare("INSERT INTO settings (key, value) VALUES ('openrouter_base_url', 'https://openrouter.ai/api/v1')").run();
+  }
 }

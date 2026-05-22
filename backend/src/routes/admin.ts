@@ -9,11 +9,15 @@ router.put('/settings', ctrl.updateSettings);
 router.get('/api-keys', ctrl.getApiKeys);
 router.put('/api-keys/:provider', ctrl.updateApiKey);
 router.post('/api-keys/:provider/test', ctrl.testApiKey);
+router.get('/api-keys/:provider/models', ctrl.getProviderModels);
 
 router.get('/prompts', ctrl.getPrompts);
 router.get('/prompts/:name', ctrl.getPrompt);
 router.put('/prompts/:name', ctrl.updatePrompt);
 
 router.get('/reference', ctrl.getReferenceData);
+
+router.get('/debug/logs', ctrl.getDebugLogs);
+router.delete('/debug/logs', ctrl.clearDebugLogs);
 
 export default router;
