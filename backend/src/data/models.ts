@@ -1,4 +1,4 @@
-export type LlmProvider = 'claude' | 'gemini';
+export type LlmProvider = 'claude' | 'gemini' | 'openrouter';
 
 export interface ModelDefinition {
   id: string;
@@ -18,7 +18,13 @@ export const MODELS: ModelDefinition[] = [
   { id: 'gemini-1.5-flash',         label: 'Gemini 1.5 Flash',   provider: 'gemini', description: 'Rapide et léger' },
 ];
 
+/** OpenRouter model IDs are prefixed with "or:" to distinguish them. */
+export function stripOrPrefix(modelId: string): string {
+  return modelId.startsWith('or:') ? modelId.slice(3) : modelId;
+}
+
 export function getProvider(modelId: string): LlmProvider {
+  if (modelId.startsWith('or:')) return 'openrouter';
   const def = MODELS.find(m => m.id === modelId);
   if (def) return def.provider;
   if (modelId.startsWith('claude')) return 'claude';

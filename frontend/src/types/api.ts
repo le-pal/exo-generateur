@@ -1,7 +1,7 @@
 // Domain types mirroring the backend API responses
 
 export type SessionStatus = 'in_progress' | 'completed' | 'corrected';
-export type LlmModel = 'claude' | 'gemini';
+export type LlmModel = 'claude' | 'gemini' | 'openrouter';
 export type Difficulty = 'facile' | 'normal' | 'difficile';
 export type ExerciseType = 'mcq' | 'text' | 'number' | 'fill_blank';
 
@@ -20,7 +20,7 @@ export interface Session {
   topic: string;
   difficulty: Difficulty;
   num_exercises: number;
-  model: LlmModel;
+  model: string;
   status: SessionStatus;
   created_at: string;
   updated_at: string;
@@ -93,7 +93,7 @@ export interface DifficultyOption {
 export interface ModelDefinition {
   id: string;
   label: string;
-  provider: 'claude' | 'gemini';
+  provider: 'claude' | 'gemini' | 'openrouter';
   description: string;
 }
 
@@ -102,4 +102,20 @@ export interface ReferenceData {
   subjects: Subject[];
   difficulties: DifficultyOption[];
   models: ModelDefinition[];
+}
+
+export interface LlmLogEntry {
+  timestamp: string;
+  provider: string;
+  model: string;
+  prompt: string;
+  images_count: number;
+  response?: string;
+  error?: string;
+  duration_ms: number;
+}
+
+export interface DebugLogsResponse {
+  logs: LlmLogEntry[];
+  logFile: string;
 }

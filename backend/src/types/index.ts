@@ -9,7 +9,7 @@ export interface Student {
 }
 
 export type SessionStatus = 'in_progress' | 'completed' | 'corrected';
-export type LlmProvider = 'claude' | 'gemini';
+export type LlmProvider = 'claude' | 'gemini' | 'openrouter';
 export type LlmModel = LlmProvider;
 export type Difficulty = 'facile' | 'normal' | 'difficile';
 export type ExerciseType = 'mcq' | 'text' | 'number' | 'fill_blank';

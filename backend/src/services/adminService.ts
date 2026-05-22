@@ -1,12 +1,14 @@
 import * as settingsRepo from '../repositories/settingsRepository.js';
 import * as apiKeyRepo from '../repositories/apiKeyRepository.js';
 import * as promptRepo from '../repositories/promptRepository.js';
-import { testProvider } from './llm.js';
+import { testProvider, listRemoteModels } from './llm.js';
+import { readLogs, clearLogs, getLogPath } from './logger.js';
 import { LEVELS, SUBJECTS, DIFFICULTIES } from '../data/subjects.js';
 import { MODELS } from '../data/models.js';
 import { AppError } from '../types/index.js';
 import type { ApiKeyRow, Prompt, LlmProvider } from '../types/index.js';
 import type { Level, Subject, DifficultyOption } from '../data/subjects.js';
+import type { ModelDefinition } from '../data/models.js';
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 
@@ -36,6 +38,12 @@ export async function testApiKey(provider: string) {
   return testProvider(provider as LlmProvider, key);
 }
 
+export async function getProviderModels(provider: string): Promise<ModelDefinition[]> {
+  const key = apiKeyRepo.findKeyByProvider(provider);
+  if (!key) throw new AppError('Aucune clé configurée pour ce provider', 400);
+  return listRemoteModels(provider as LlmProvider, key);
+}
+
 // ── Prompts ───────────────────────────────────────────────────────────────────
 
 export function getPrompts(): Prompt[] {
@@ -56,9 +64,51 @@ export function updatePrompt(name: string, data: { content?: string; description
 // ── Reference data ────────────────────────────────────────────────────────────
 
 export function getReferenceData() {
+  const allKeys = apiKeyRepo.findAll();
   const activeProviders = new Set(
-    apiKeyRepo.findAll().filter(k => k.active === 1 && k.is_set === 1).map(k => k.provider),
+    allKeys.filter(k => k.active === 1 && k.is_set === 1).map(k => k.provider),
   );
-  const models = MODELS.filter(m => activeProviders.has(m.provider));
-  return { levels: LEVELS, subjects: SUBJECTS, difficulties: DIFFICULTIES, models };
+
+  // Static models for claude and gemini
+  const staticModels = MODELS.filter(m => activeProviders.has(m.provider));
+
+  // If the current default_model is an OpenRouter model, include it so the UI shows it as selected
+  const defaultModel = settingsRepo.findByKey('default_model') ?? '';
+  const openrouterModels: ModelDefinition[] = [];
+  if (defaultModel.startsWith('or:') && activeProviders.has('openrouter')) {
+    const cached = settingsRepo.findByKey('openrouter_selected_model_meta');
+    if (cached) {
+      try {
+        openrouterModels.push(JSON.parse(cached) as ModelDefinition);
+      } catch {
+        openrouterModels.push({
+          id: defaultModel,
+          label: defaultModel.slice(3),
+          provider: 'openrouter',
+          description: 'Modèle OpenRouter sélectionné',
+        });
+      }
+    }
+  }
+
+  return {
+    levels: LEVELS as Level[],
+    subjects: SUBJECTS as Subject[],
+    difficulties: DIFFICULTIES as DifficultyOption[],
+    models: [...staticModels, ...openrouterModels],
+  };
+}
+
+// ── Debug logs ────────────────────────────────────────────────────────────────
+
+export function getDebugLogs(limit?: number) {
+  return {
+    logs: readLogs(limit ?? 200),
+    logFile: getLogPath(),
+  };
+}
+
+export function clearDebugLogs() {
+  clearLogs();
+  return { ok: true };
 }

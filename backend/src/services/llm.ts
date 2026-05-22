@@ -2,8 +2,10 @@ import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { findKeyByProvider } from '../repositories/apiKeyRepository.js';
 import { findByName } from '../repositories/promptRepository.js';
+import { findByKey } from '../repositories/settingsRepository.js';
 import { AppError } from '../types/index.js';
-import { getProvider } from '../data/models.js';
+import { getProvider, stripOrPrefix, MODELS } from '../data/models.js';
+import { writeLog, isDebugEnabled } from './logger.js';
 import type {
   LlmProvider,
   Difficulty,
@@ -12,6 +14,7 @@ import type {
   LlmGenerationResult,
   LlmCorrectionResult,
 } from '../types/index.js';
+import type { ModelDefinition } from '../data/models.js';
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -44,11 +47,6 @@ function parseJsonResponse<T>(text: string): T {
   return JSON.parse(cleaned) as T;
 }
 
-/**
- * Extracts a human-readable message from provider SDK errors.
- * Anthropic: err.error.error.message  (nested)
- * Gemini: err.message or err.errorDetails[].message
- */
 function extractErrorMessage(err: unknown): string {
   if (typeof err !== 'object' || err === null) return String(err);
   const e = err as Record<string, unknown>;
@@ -61,13 +59,16 @@ function extractErrorMessage(err: unknown): string {
     if (typeof nested['message'] === 'string') return nested['message'];
   }
 
-  // Gemini SDK: { message, errorDetails }
+  // Gemini SDK / fetch errors: { message }
   if (typeof e['message'] === 'string') {
-    // Strip leading "XXX " status prefix if present, e.g. "400 Bad Request"
     return e['message'].replace(/^\d{3} /, '');
   }
 
   return 'Erreur inconnue';
+}
+
+function getOpenRouterBaseUrl(): string {
+  return (findByKey('openrouter_base_url') ?? 'https://openrouter.ai/api/v1').replace(/\/$/, '');
 }
 
 // ── Providers ─────────────────────────────────────────────────────────────────
@@ -103,11 +104,94 @@ async function callGemini(apiKey: string, modelId: string, promptText: string, i
   return result.response.text();
 }
 
-function callProvider(modelId: string, apiKey: string, promptText: string, images: ImagePayload[]): Promise<string> {
+async function callOpenRouter(apiKey: string, baseUrl: string, modelId: string, promptText: string, images: ImagePayload[]): Promise<string> {
+  type ContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
+  type Message = { role: string; content: string | ContentPart[] };
+
+  const messages: Message[] = [];
+
+  if (images.length > 0) {
+    const parts: ContentPart[] = [
+      ...images.map(img => ({
+        type: 'image_url' as const,
+        image_url: { url: `data:${img.mediaType};base64,${img.data}` },
+      })),
+      { type: 'text' as const, text: promptText },
+    ];
+    messages.push({ role: 'user', content: parts });
+  } else {
+    messages.push({ role: 'user', content: promptText });
+  }
+
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': 'https://exo-generateur',
+      'X-Title': 'Exo Générateur',
+    },
+    body: JSON.stringify({ model: modelId, messages, max_tokens: 4096 }),
+  });
+
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
+    throw new Error(extractErrorMessage(errBody));
+  }
+
+  const data = await response.json() as { choices: Array<{ message: { content: string } }> };
+  const content = data.choices[0]?.message?.content;
+  if (!content) throw new Error('Réponse vide du modèle');
+  return content;
+}
+
+// ── Debug wrapper ─────────────────────────────────────────────────────────────
+
+async function callWithDebug(
+  provider: LlmProvider,
+  modelId: string,
+  promptText: string,
+  images: ImagePayload[],
+  fn: () => Promise<string>,
+): Promise<string> {
+  if (!isDebugEnabled()) return fn();
+
+  const start = Date.now();
+  try {
+    const response = await fn();
+    writeLog({
+      timestamp: new Date().toISOString(),
+      provider,
+      model: modelId,
+      prompt: promptText,
+      images_count: images.length,
+      response,
+      duration_ms: Date.now() - start,
+    });
+    return response;
+  } catch (err) {
+    writeLog({
+      timestamp: new Date().toISOString(),
+      provider,
+      model: modelId,
+      prompt: promptText,
+      images_count: images.length,
+      error: extractErrorMessage(err),
+      duration_ms: Date.now() - start,
+    });
+    throw err;
+  }
+}
+
+async function callProvider(modelId: string, apiKey: string, promptText: string, images: ImagePayload[]): Promise<string> {
   const provider = getProvider(modelId);
-  return provider === 'gemini'
-    ? callGemini(apiKey, modelId, promptText, images)
-    : callClaude(apiKey, modelId, promptText, images);
+  const actualModelId = stripOrPrefix(modelId);
+
+  return callWithDebug(provider, actualModelId, promptText, images, () => {
+    if (provider === 'gemini') return callGemini(apiKey, actualModelId, promptText, images);
+    if (provider === 'openrouter') return callOpenRouter(apiKey, getOpenRouterBaseUrl(), actualModelId, promptText, images);
+    return callClaude(apiKey, actualModelId, promptText, images);
+  });
 }
 
 // ── Provider test ─────────────────────────────────────────────────────────────
@@ -126,15 +210,58 @@ export async function testProvider(provider: LlmProvider, apiKey: string): Promi
         max_tokens: 10,
         messages: [{ role: 'user', content: 'Say "ok"' }],
       });
-    } else {
+    } else if (provider === 'gemini') {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
       await model.generateContent('Say "ok"');
+    } else {
+      // OpenRouter: just list models as connectivity test
+      const baseUrl = getOpenRouterBaseUrl();
+      const response = await fetch(`${baseUrl}/models`, {
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+      });
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
+        return { ok: false, error: extractErrorMessage(errBody) };
+      }
     }
     return { ok: true };
   } catch (err) {
     return { ok: false, error: extractErrorMessage(err) };
   }
+}
+
+// ── Model listing (OpenRouter / OpenAI-compatible) ────────────────────────────
+
+export async function listRemoteModels(provider: LlmProvider, apiKey: string): Promise<ModelDefinition[]> {
+  if (provider !== 'openrouter') {
+    return MODELS.filter(m => m.provider === provider);
+  }
+
+  const baseUrl = getOpenRouterBaseUrl();
+  const response = await fetch(`${baseUrl}/models`, {
+    headers: { 'Authorization': `Bearer ${apiKey}` },
+  });
+
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
+    throw new AppError(extractErrorMessage(errBody), 502);
+  }
+
+  const data = await response.json() as {
+    data: Array<{ id: string; name?: string; description?: string; context_length?: number }>;
+  };
+
+  return data.data.map(m => ({
+    id: `or:${m.id}`,
+    label: m.name ?? m.id,
+    provider: 'openrouter' as LlmProvider,
+    description: m.description
+      ? m.description.slice(0, 120)
+      : m.context_length
+        ? `Contexte : ${m.context_length.toLocaleString()} tokens`
+        : '',
+  }));
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
