@@ -180,4 +180,11 @@ RÈGLES :
   if (!db.prepare('SELECT id FROM api_keys WHERE provider = ?').get('gemini')) {
     db.prepare("INSERT INTO api_keys (provider, api_key) VALUES ('gemini', '')").run();
   }
+  if (!db.prepare('SELECT id FROM api_keys WHERE provider = ?').get('openrouter')) {
+    db.prepare("INSERT INTO api_keys (provider, api_key) VALUES ('openrouter', '')").run();
+  }
+
+  if (!db.prepare('SELECT value FROM settings WHERE key = ?').get('debug_mode')) {
+    db.prepare("INSERT INTO settings (key, value) VALUES ('debug_mode', 'false')").run();
+  }
 }

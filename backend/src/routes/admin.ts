@@ -16,4 +16,7 @@ router.put('/prompts/:name', ctrl.updatePrompt);
 
 router.get('/reference', ctrl.getReferenceData);
 
+router.get('/openrouter-models', ctrl.getOpenRouterModels);
+router.get('/logs', ctrl.getLogs);
+
 export default router;

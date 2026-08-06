@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type {
   Student, SessionView, StudentSessionSummary,
-  Prompt, ApiKeyInfo, ReferenceData,
+  Prompt, ApiKeyInfo, ReferenceData, ModelDefinition, LlmLogEntry,
 } from '../types/api.ts';
 
 const api = axios.create({
@@ -52,3 +52,7 @@ export const updatePrompt = (name: string, data: { content?: string; description
   api.put(`/admin/prompts/${name}`, data).then(r => r.data);
 
 export const getReferenceData = (): Promise<ReferenceData> => api.get('/admin/reference').then(r => r.data);
+
+export const getOpenRouterModels = (): Promise<ModelDefinition[]> => api.get('/admin/openrouter-models').then(r => r.data);
+
+export const getLogs = (limit = 100): Promise<LlmLogEntry[]> => api.get('/admin/logs', { params: { limit } }).then(r => r.data);

@@ -2,8 +2,10 @@ import * as settingsRepo from '../repositories/settingsRepository.js';
 import * as apiKeyRepo from '../repositories/apiKeyRepository.js';
 import * as promptRepo from '../repositories/promptRepository.js';
 import { testProvider } from './llm.js';
+import { fetchOpenRouterModels } from './openrouterService.js';
+import { readLogs } from './logger.js';
 import { LEVELS, SUBJECTS, DIFFICULTIES } from '../data/subjects.js';
-import { MODELS } from '../data/models.js';
+import { getAllModels } from '../data/models.js';
 import { AppError } from '../types/index.js';
 import type { ApiKeyRow, Prompt, LlmProvider } from '../types/index.js';
 import type { Level, Subject, DifficultyOption } from '../data/subjects.js';
@@ -36,6 +38,12 @@ export async function testApiKey(provider: string) {
   return testProvider(provider as LlmProvider, key);
 }
 
+export async function getOpenRouterModels() {
+  const key = apiKeyRepo.findKeyByProvider('openrouter');
+  if (!key) throw new AppError('Clé API OpenRouter non configurée', 503);
+  return fetchOpenRouterModels(key);
+}
+
 // ── Prompts ───────────────────────────────────────────────────────────────────
 
 export function getPrompts(): Prompt[] {
@@ -59,6 +67,10 @@ export function getReferenceData() {
   const activeProviders = new Set(
     apiKeyRepo.findAll().filter(k => k.active === 1 && k.is_set === 1).map(k => k.provider),
   );
-  const models = MODELS.filter(m => activeProviders.has(m.provider));
+  const models = getAllModels().filter(m => activeProviders.has(m.provider));
   return { levels: LEVELS, subjects: SUBJECTS, difficulties: DIFFICULTIES, models };
+}
+
+export function getLogs(limit = 100) {
+  return readLogs(limit);
 }

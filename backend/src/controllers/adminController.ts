@@ -49,3 +49,10 @@ export const testApiKey = handle(async (req) => {
 });
 
 export const getReferenceData = handle(() => adminService.getReferenceData());
+
+export const getOpenRouterModels = handle(async () => adminService.getOpenRouterModels());
+
+export const getLogs = handle((req) => {
+  const limit = Math.min(Number(req.query['limit'] ?? 100), 500);
+  return adminService.getLogs(limit);
+});
