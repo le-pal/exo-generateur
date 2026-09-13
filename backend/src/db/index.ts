@@ -131,7 +131,7 @@ INSTRUCTIONS :
 - Choisis le type le plus adapté à chaque question :
   * "mcq" : question à choix multiple (4 options), idéal pour connaissances et compréhension
   * "text" : réponse rédigée libre, pour l'analyse et l'expression
-  * "number" : résultat numérique uniquement, pour les calculs
+  * "number" : résultat numérique (entier, décimal, ou fraction comme "3/4"), pour les calculs
   * "fill_blank" : compléter une phrase avec [BLANK], pour vocabulaire et grammaire
 
 Réponds UNIQUEMENT avec du JSON valide, sans markdown, sans explication :
@@ -203,6 +203,18 @@ Contexte du programme officiel pour ce thème (à respecter pour la pertinence p
 {{/if}}
 
 {{#if uploaded_content}}`,
+    );
+    db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE name = 'generation'").run(patched);
+  }
+
+  // Migration idempotente : clarifie que le type "number" accepte les fractions (ex. "3/4"),
+  // pas seulement un nombre décimal — le champ de saisie ne les rejette plus (voir
+  // ExerciseCard.tsx), mais l'ancien prompt disait encore "uniquement" un nombre.
+  const genPromptForNumberFix = db.prepare('SELECT content FROM prompts WHERE name = ?').get('generation') as { content: string } | undefined;
+  if (genPromptForNumberFix?.content.includes('"number" : résultat numérique uniquement, pour les calculs')) {
+    const patched = genPromptForNumberFix.content.replace(
+      '"number" : résultat numérique uniquement, pour les calculs',
+      '"number" : résultat numérique (entier, décimal, ou fraction comme "3/4"), pour les calculs',
     );
     db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE name = 'generation'").run(patched);
   }

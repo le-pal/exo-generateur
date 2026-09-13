@@ -204,13 +204,13 @@ export default function ExerciseCard({ exercise, index, onAnswer, disabled, show
 
         {exercise.type === 'number' && (
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             className="input w-40"
-            placeholder="0"
+            placeholder="Ex : 3 ou 1/5"
             value={answer}
             onChange={e => handleChange(e.target.value)}
             disabled={disabled}
-            step="any"
           />
         )}
 
