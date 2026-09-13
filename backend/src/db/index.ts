@@ -134,6 +134,13 @@ INSTRUCTIONS :
   * "number" : résultat numérique (entier, décimal, ou fraction comme "3/4"), pour les calculs
   * "fill_blank" : compléter une phrase avec [BLANK], pour vocabulaire et grammaire
 
+BARÈME (répartition des points, un vrai barème, pas la même valeur partout) :
+- 1 point : question de connaissance directe ou de restitution simple (QCM immédiat, une seule notion, pas de calcul)
+- 2 points : question demandant une application ou un calcul à une ou deux étapes
+- 3 points : question demandant un raisonnement en plusieurs étapes, une rédaction argumentée, ou la mobilisation de plusieurs notions
+- Varie réellement les points selon la difficulté propre de chaque exercice, ne mets pas systématiquement 1 partout
+- Le total des points de la séance doit rester cohérent avec le nombre d'exercices demandé ({{num_exercises}})
+
 Réponds UNIQUEMENT avec du JSON valide, sans markdown, sans explication :
 {
   "exercises": [
@@ -182,10 +189,11 @@ Réponds UNIQUEMENT avec du JSON valide, sans markdown :
 }
 
 RÈGLES :
-- score entre 0 et 1 (peut être partiel pour les questions ouvertes)
+- score : uniquement 0, 0.5 ou 1 (jamais d'autre valeur) — 1 = entièrement correct, 0.5 = partiellement correct (une partie de la réponse est juste, ou la démarche est bonne mais le résultat final est faux), 0 = incorrect
+- is_correct doit valoir true UNIQUEMENT quand score vaut 1 ; pour score 0.5 ou 0, is_correct doit valoir false
 - Sois encourageant et pédagogique, jamais décourageant
 - Pour les questions ouvertes (text), accepte les réponses correctes même si le wording diffère
-- Explique toujours POURQUOI la réponse est correcte ou incorrecte`,
+- Explique toujours POURQUOI la réponse est correcte, partiellement correcte ou incorrecte`,
       'Prompt de correction des exercices',
     );
   }
@@ -217,6 +225,36 @@ Contexte du programme officiel pour ce thème (à respecter pour la pertinence p
       '"number" : résultat numérique (entier, décimal, ou fraction comme "3/4"), pour les calculs',
     );
     db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE name = 'generation'").run(patched);
+  }
+
+  // Migration idempotente : ajoute un vrai barème (critères de répartition des points par
+  // difficulté) au prompt de génération, au lieu de laisser le LLM mettre 1 point partout.
+  const genPromptForBareme = db.prepare('SELECT content FROM prompts WHERE name = ?').get('generation') as { content: string } | undefined;
+  if (genPromptForBareme && !genPromptForBareme.content.includes('BARÈME') && genPromptForBareme.content.includes('Réponds UNIQUEMENT avec du JSON valide, sans markdown, sans explication :')) {
+    const patched = genPromptForBareme.content.replace(
+      'Réponds UNIQUEMENT avec du JSON valide, sans markdown, sans explication :',
+      `BARÈME (répartition des points, un vrai barème, pas la même valeur partout) :
+- 1 point : question de connaissance directe ou de restitution simple (QCM immédiat, une seule notion, pas de calcul)
+- 2 points : question demandant une application ou un calcul à une ou deux étapes
+- 3 points : question demandant un raisonnement en plusieurs étapes, une rédaction argumentée, ou la mobilisation de plusieurs notions
+- Varie réellement les points selon la difficulté propre de chaque exercice, ne mets pas systématiquement 1 partout
+- Le total des points de la séance doit rester cohérent avec le nombre d'exercices demandé ({{num_exercises}})
+
+Réponds UNIQUEMENT avec du JSON valide, sans markdown, sans explication :`,
+    );
+    db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE name = 'generation'").run(patched);
+  }
+
+  // Migration idempotente : impose des demi-points (score 0 / 0.5 / 1 uniquement) dans le
+  // prompt de correction au lieu d'un score continu entre 0 et 1, pour un barème lisible.
+  const existingCorrPrompt = db.prepare('SELECT content FROM prompts WHERE name = ?').get('correction') as { content: string } | undefined;
+  if (existingCorrPrompt?.content.includes('- score entre 0 et 1 (peut être partiel pour les questions ouvertes)')) {
+    const patched = existingCorrPrompt.content.replace(
+      '- score entre 0 et 1 (peut être partiel pour les questions ouvertes)',
+      `- score : uniquement 0, 0.5 ou 1 (jamais d'autre valeur) — 1 = entièrement correct, 0.5 = partiellement correct (une partie de la réponse est juste, ou la démarche est bonne mais le résultat final est faux), 0 = incorrect
+- is_correct doit valoir true UNIQUEMENT quand score vaut 1 ; pour score 0.5 ou 0, is_correct doit valoir false`,
+    );
+    db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE name = 'correction'").run(patched);
   }
 
   if (!db.prepare('SELECT id FROM api_keys WHERE provider = ?').get('claude')) {

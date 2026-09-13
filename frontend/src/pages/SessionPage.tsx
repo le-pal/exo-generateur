@@ -72,7 +72,9 @@ export default function SessionPage() {
 
   const correct = exercises.filter(e => e.answer?.is_correct === 1);
   const totalPoints = exercises.reduce((s, e) => s + (e.points ?? 1), 0);
-  const earnedPoints = correct.reduce((s, e) => s + (e.points ?? 1), 0);
+  // score (0, 0.5 ou 1) pondère les points de l'exercice — le crédit partiel (demi-point)
+  // doit compter dans le total, pas seulement les exercices entièrement corrects.
+  const earnedPoints = exercises.reduce((s, e) => s + (e.answer?.score ?? 0) * (e.points ?? 1), 0);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -95,7 +97,7 @@ export default function SessionPage() {
           </div>
           {isCorrected && (
             <div className="text-right">
-              <div className="text-2xl font-bold text-blue-600">{earnedPoints}/{totalPoints}</div>
+              <div className="text-2xl font-bold text-blue-600">{formatPoints(earnedPoints)}/{formatPoints(totalPoints)}</div>
               <div className="text-xs text-gray-500">points</div>
             </div>
           )}
@@ -197,6 +199,12 @@ function Spinner({ label }: { label: string }) {
       {label}
     </span>
   );
+}
+
+/** Points are always a multiple of 0.5 (score ∈ {0, 0.5, 1} × integer points) — show "3.5" but not "3.0". */
+function formatPoints(n: number): string {
+  const rounded = Math.round(n * 2) / 2;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
 
 function difficultyStyle(d: string): string {

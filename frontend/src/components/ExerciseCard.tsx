@@ -114,13 +114,15 @@ export default function ExerciseCard({ exercise, index, onAnswer, disabled, show
   const isCorrect = exercise.answer?.is_correct;
   const correction = exercise.answer?.correction;
   const score = exercise.answer?.score;
+  const isPartial = showCorrection && !isCorrect && score !== null && score !== undefined && score > 0;
+  const earnedPoints = score !== null && score !== undefined ? score * exercise.points : null;
 
   const borderColor = showCorrection && exercise.answer
-    ? isCorrect ? 'border-green-300' : 'border-red-300'
+    ? isCorrect ? 'border-green-300' : isPartial ? 'border-amber-300' : 'border-red-300'
     : 'border-gray-100';
 
   const headerBg = showCorrection && exercise.answer
-    ? isCorrect ? 'bg-green-50' : 'bg-red-50'
+    ? isCorrect ? 'bg-green-50' : isPartial ? 'bg-amber-50' : 'bg-red-50'
     : 'bg-gray-50';
 
   return (
@@ -131,17 +133,18 @@ export default function ExerciseCard({ exercise, index, onAnswer, disabled, show
             Exercice {index + 1}
           </span>
           <span className={`badge ${typeStyle(exercise.type)}`}>{typeLabel(exercise.type)}</span>
-          <span className="text-xs text-gray-400">{exercise.points} pt{exercise.points > 1 ? 's' : ''}</span>
+          <span className="text-xs text-gray-400">
+            {showCorrection && earnedPoints !== null ? `${formatPoints(earnedPoints)}/${exercise.points}` : exercise.points} pt{exercise.points > 1 ? 's' : ''}
+          </span>
         </div>
         {showCorrection && exercise.answer && (
           <div className="flex items-center gap-1">
             {isCorrect
               ? <span className="text-green-600 font-semibold text-sm">✓ Correct</span>
-              : <span className="text-red-600 font-semibold text-sm">✗ Incorrect</span>
+              : isPartial
+                ? <span className="text-amber-600 font-semibold text-sm">◐ Partiel</span>
+                : <span className="text-red-600 font-semibold text-sm">✗ Incorrect</span>
             }
-            {score !== null && score !== undefined && !isCorrect && score > 0 && (
-              <span className="text-amber-600 text-xs">({Math.round(score * 100)}%)</span>
-            )}
           </div>
         )}
       </div>
@@ -223,6 +226,12 @@ export default function ExerciseCard({ exercise, index, onAnswer, disabled, show
       </div>
     </div>
   );
+}
+
+/** Points are always a multiple of 0.5 (score ∈ {0, 0.5, 1} × integer points) — show "1.5" but not "1.0". */
+function formatPoints(n: number): string {
+  const rounded = Math.round(n * 2) / 2;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
 
 function typeLabel(type: string): string {
