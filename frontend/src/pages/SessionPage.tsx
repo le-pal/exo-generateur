@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSession, saveAnswer, correctSession, getSessionTrace } from '../api/client.ts';
 import ExerciseCard from '../components/ExerciseCard.tsx';
-import type { SessionView } from '../types/api.ts';
+import type { SessionView, ExerciseView } from '../types/api.ts';
 import type { AxiosError } from 'axios';
 
 export default function SessionPage() {
@@ -121,12 +121,13 @@ export default function SessionPage() {
       </div>
 
       <div className="space-y-4">
-        {exercises.map((ex, i) => (
+        {groupExercises(exercises).map((g, i) => (
           <ExerciseCard
-            key={ex.id}
-            exercise={ex}
+            key={g.key}
             index={i}
-            onAnswer={(val) => handleAnswer(ex.id, val)}
+            groupStatement={g.groupStatement}
+            exercises={g.items}
+            onAnswer={handleAnswer}
             disabled={isCorrected}
             showCorrection={isCorrected}
           />
@@ -205,6 +206,27 @@ function Spinner({ label }: { label: string }) {
 function formatPoints(n: number): string {
   const rounded = Math.round(n * 2) / 2;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+interface ExerciseGroupItem {
+  key: string;
+  groupStatement: string | null;
+  items: ExerciseView[];
+}
+
+/** Clusters consecutive exercises sharing the same group_id — the backend already emits them
+ *  adjacent and ordered, so this is a simple linear scan, not a full grouping pass. */
+function groupExercises(exercises: ExerciseView[]): ExerciseGroupItem[] {
+  const result: ExerciseGroupItem[] = [];
+  for (const ex of exercises) {
+    const last = result[result.length - 1];
+    if (ex.group_id !== null && last?.items[0]?.group_id === ex.group_id) {
+      last.items.push(ex);
+    } else {
+      result.push({ key: `ex-${ex.id}`, groupStatement: ex.group_statement, items: [ex] });
+    }
+  }
+  return result;
 }
 
 function difficultyStyle(d: string): string {

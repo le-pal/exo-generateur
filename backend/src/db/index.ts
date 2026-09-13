@@ -17,8 +17,17 @@ export function initDb(): void {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   createSchema(db);
+  migrateSchema(db);
   seedDefaultData(db);
   console.log(`SQLite connected: ${DB_PATH}`);
+}
+
+/** No migrations framework — new columns on an existing table need a guarded ALTER TABLE. */
+function migrateSchema(db: Database.Database): void {
+  const exerciseColumns = db.prepare('PRAGMA table_info(exercises)').all() as { name: string }[];
+  if (!exerciseColumns.some(c => c.name === 'group_id')) {
+    db.exec('ALTER TABLE exercises ADD COLUMN group_id INTEGER REFERENCES exercise_groups(id) ON DELETE CASCADE');
+  }
 }
 
 function createSchema(db: Database.Database): void {
@@ -44,9 +53,17 @@ function createSchema(db: Database.Database): void {
       updated_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS exercise_groups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      order_num INTEGER NOT NULL,
+      statement TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS exercises (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      group_id INTEGER REFERENCES exercise_groups(id) ON DELETE CASCADE,
       order_num INTEGER NOT NULL,
       type TEXT NOT NULL,
       question TEXT NOT NULL,
@@ -134,6 +151,20 @@ INSTRUCTIONS :
   * "number" : résultat numérique (entier, décimal, ou fraction comme "3/4"), pour les calculs
   * "fill_blank" : compléter une phrase avec [BLANK], pour vocabulaire et grammaire
 
+STRUCTURE :
+- La plupart des exercices sont indépendants les uns des autres
+- Tu peux aussi enchaîner 2 à 4 sous-questions autour d'une même situation (un problème en plusieurs étapes, un texte suivi de questions de compréhension, une expérience à analyser...). Utilise alors un objet de ce type au lieu d'un exercice classique :
+  {
+    "type": "group",
+    "statement": "Énoncé ou contexte commun à toutes les sous-questions suivantes.",
+    "questions": [
+      { "type": "number", "question": "...", "options": null, "correct_answer": "...", "points": 1 },
+      { "type": "text", "question": "...", "options": null, "correct_answer": "...", "points": 2 }
+    ]
+  }
+- Mélange questions indépendantes et groupes enchaînés selon ce qui est pédagogiquement pertinent pour le thème — ne mets pas systématiquement l'un ou l'autre
+- Le total de questions générées (indépendantes + toutes les sous-questions des groupes) doit être exactement {{num_exercises}}
+
 BARÈME (répartition des points, un vrai barème, pas la même valeur partout) :
 - 1 point : question de connaissance directe ou de restitution simple (QCM immédiat, une seule notion, pas de calcul)
 - 2 points : question demandant une application ou un calcul à une ou deux étapes
@@ -157,6 +188,14 @@ Réponds UNIQUEMENT avec du JSON valide, sans markdown, sans explication :
       "options": null,
       "correct_answer": "Réponse attendue détaillée...",
       "points": 2
+    },
+    {
+      "type": "group",
+      "statement": "Énoncé commun aux sous-questions suivantes...",
+      "questions": [
+        { "type": "number", "question": "...", "options": null, "correct_answer": "...", "points": 1 },
+        { "type": "text", "question": "...", "options": null, "correct_answer": "...", "points": 2 }
+      ]
     }
   ]
 }`,
@@ -223,6 +262,31 @@ Contexte du programme officiel pour ce thème (à respecter pour la pertinence p
     const patched = genPromptForNumberFix.content.replace(
       '"number" : résultat numérique uniquement, pour les calculs',
       '"number" : résultat numérique (entier, décimal, ou fraction comme "3/4"), pour les calculs',
+    );
+    db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE name = 'generation'").run(patched);
+  }
+
+  // Migration idempotente : ajoute le format "groupe" (sous-questions enchaînées autour d'un
+  // même énoncé) au prompt de génération.
+  const genPromptForGroups = db.prepare('SELECT content FROM prompts WHERE name = ?').get('generation') as { content: string } | undefined;
+  if (genPromptForGroups && !genPromptForGroups.content.includes('"type": "group"') && genPromptForGroups.content.includes('BARÈME (répartition des points')) {
+    const patched = genPromptForGroups.content.replace(
+      'BARÈME (répartition des points',
+      `STRUCTURE :
+- La plupart des exercices sont indépendants les uns des autres
+- Tu peux aussi enchaîner 2 à 4 sous-questions autour d'une même situation (un problème en plusieurs étapes, un texte suivi de questions de compréhension, une expérience à analyser...). Utilise alors un objet de ce type au lieu d'un exercice classique :
+  {
+    "type": "group",
+    "statement": "Énoncé ou contexte commun à toutes les sous-questions suivantes.",
+    "questions": [
+      { "type": "number", "question": "...", "options": null, "correct_answer": "...", "points": 1 },
+      { "type": "text", "question": "...", "options": null, "correct_answer": "...", "points": 2 }
+    ]
+  }
+- Mélange questions indépendantes et groupes enchaînés selon ce qui est pédagogiquement pertinent pour le thème — ne mets pas systématiquement l'un ou l'autre
+- Le total de questions générées (indépendantes + toutes les sous-questions des groupes) doit être exactement {{num_exercises}}
+
+BARÈME (répartition des points`,
     );
     db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE name = 'generation'").run(patched);
   }

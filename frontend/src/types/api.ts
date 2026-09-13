@@ -39,6 +39,8 @@ export interface Answer {
 export interface ExerciseView {
   id: number;
   session_id: number;
+  /** Non-null when this exercise is a sub-question of a chained group (see group_statement). */
+  group_id: number | null;
   order_num: number;
   type: ExerciseType;
   question: string;
@@ -46,6 +48,8 @@ export interface ExerciseView {
   correct_answer: string;
   points: number;
   answer: Answer | null;
+  /** Shared statement/context for the group this exercise belongs to — null for standalone exercises. */
+  group_statement: string | null;
 }
 
 export interface SessionView extends Session {

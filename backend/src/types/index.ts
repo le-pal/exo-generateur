@@ -30,6 +30,8 @@ export interface Session {
 export interface Exercise {
   id: number;
   session_id: number;
+  /** Non-null when this exercise is a sub-question of an ExerciseGroup (shared statement). */
+  group_id: number | null;
   order_num: number;
   type: ExerciseType;
   question: string;
@@ -37,6 +39,14 @@ export interface Exercise {
   options: string | null;
   correct_answer: string;
   points: number;
+}
+
+/** A shared statement/context for a chain of sub-questions (e.g. a multi-step problem). */
+export interface ExerciseGroup {
+  id: number;
+  session_id: number;
+  order_num: number;
+  statement: string;
 }
 
 export interface Answer {
@@ -72,6 +82,8 @@ export interface ApiKeyRow {
 export interface ExerciseView extends Omit<Exercise, 'options'> {
   options: string[] | null;
   answer: Answer | null;
+  /** Denormalized from ExerciseGroup — null for standalone exercises. */
+  group_statement: string | null;
 }
 
 export interface SessionView extends Session {
@@ -93,8 +105,21 @@ export interface LlmExercise {
   points?: number;
 }
 
+/** A chain of sub-questions sharing one statement/context (a multi-step problem, a text + comprehension questions...). */
+export interface LlmExerciseGroup {
+  type: 'group';
+  statement: string;
+  questions: LlmExercise[];
+}
+
+export type LlmExerciseItem = LlmExercise | LlmExerciseGroup;
+
+export function isLlmExerciseGroup(item: LlmExerciseItem): item is LlmExerciseGroup {
+  return item.type === 'group';
+}
+
 export interface LlmGenerationResult {
-  exercises: LlmExercise[];
+  exercises: LlmExerciseItem[];
 }
 
 export interface LlmCorrection {
