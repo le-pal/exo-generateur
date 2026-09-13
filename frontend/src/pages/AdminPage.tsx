@@ -461,7 +461,7 @@ function ApiKeyStatusBadge({ keyRow, testState }: { keyRow: ApiKeyInfo | undefin
 // ── Prompts ───────────────────────────────────────────────────────────────────
 
 const PROMPT_VARS: Record<string, string[]> = {
-  generation: ['{{subject}}', '{{level}}', '{{topic}}', '{{difficulty}}', '{{num_exercises}}', '{{uploaded_content}}', '{{#if uploaded_content}}…{{/if}}'],
+  generation: ['{{subject}}', '{{level}}', '{{topic}}', '{{difficulty}}', '{{num_exercises}}', '{{uploaded_content}}', '{{#if uploaded_content}}…{{/if}}', '{{curriculum_context}}', '{{#if curriculum_context}}…{{/if}}'],
   correction: ['{{subject}}', '{{level}}', '{{exercises_and_answers}}'],
 };
 

@@ -108,9 +108,18 @@ export interface LlmExchange {
   created_at: string;
 }
 
+export interface CurriculumTopic {
+  label: string;
+  context: string;
+}
+
+/** level -> subject -> topics, limité aux niveaux/matières couverts (voir backend/src/data/curriculum.ts) */
+export type Curriculum = Record<string, Record<string, CurriculumTopic[]>>;
+
 export interface ReferenceData {
   levels: Level[];
   subjects: Subject[];
   difficulties: DifficultyOption[];
   models: ModelDefinition[];
+  curriculum: Curriculum;
 }

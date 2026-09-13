@@ -115,6 +115,11 @@ function seedDefaultData(db: Database.Database): void {
 
 Génère exactement {{num_exercises}} exercices de difficulté {{difficulty}} sur le thème : "{{topic}}".
 
+{{#if curriculum_context}}
+Contexte du programme officiel pour ce thème (à respecter pour la pertinence pédagogique) :
+{{curriculum_context}}
+{{/if}}
+
 {{#if uploaded_content}}
 Voici du contenu de référence (cours ou exercices) fourni par l'enseignant :
 {{uploaded_content}}
@@ -183,6 +188,23 @@ RÈGLES :
 - Explique toujours POURQUOI la réponse est correcte ou incorrecte`,
       'Prompt de correction des exercices',
     );
+  }
+
+  // Migration idempotente : injecte le bloc {{curriculum_context}} dans un prompt "generation"
+  // déjà existant (installations antérieures à cette fonctionnalité) sans écraser une
+  // personnalisation éventuelle qui n'aurait plus l'ancre attendue.
+  const existingGenPrompt = db.prepare('SELECT content FROM prompts WHERE name = ?').get('generation') as { content: string } | undefined;
+  if (existingGenPrompt && !existingGenPrompt.content.includes('{{curriculum_context}}') && existingGenPrompt.content.includes('{{#if uploaded_content}}')) {
+    const patched = existingGenPrompt.content.replace(
+      '{{#if uploaded_content}}',
+      `{{#if curriculum_context}}
+Contexte du programme officiel pour ce thème (à respecter pour la pertinence pédagogique) :
+{{curriculum_context}}
+{{/if}}
+
+{{#if uploaded_content}}`,
+    );
+    db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE name = 'generation'").run(patched);
   }
 
   if (!db.prepare('SELECT id FROM api_keys WHERE provider = ?').get('claude')) {

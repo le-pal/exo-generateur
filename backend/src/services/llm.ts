@@ -5,6 +5,7 @@ import { findByName } from '../repositories/promptRepository.js';
 import * as exchangeRepo from '../repositories/exchangeRepository.js';
 import { AppError } from '../types/index.js';
 import { getProvider } from '../data/models.js';
+import { getTopicContext } from '../data/curriculum.js';
 import type {
   LlmProvider,
   Difficulty,
@@ -233,10 +234,12 @@ export async function generateExercises(
   const { model, subject, level, topic, difficulty, numExercises, uploadedContent, images } = input;
   const apiKey = resolveApiKey(getProvider(model));
   const template = resolvePromptTemplate('generation');
+  const curriculumContext = getTopicContext(level, subject, topic) ?? '';
   const promptText = renderTemplate(template, {
     subject, level, topic, difficulty,
     num_exercises: numExercises,
     uploaded_content: uploadedContent,
+    curriculum_context: curriculumContext,
   });
 
   let raw: string;

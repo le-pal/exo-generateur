@@ -5,6 +5,7 @@ import { testProvider, fetchOpenRouterModels } from './llm.js';
 import { LEVELS, SUBJECTS, DIFFICULTIES } from '../data/subjects.js';
 import { MODELS } from '../data/models.js';
 import type { ModelDefinition } from '../data/models.js';
+import { CURRICULUM } from '../data/curriculum.js';
 import { AppError } from '../types/index.js';
 import type { ApiKeyRow, Prompt, LlmProvider } from '../types/index.js';
 import type { Level, Subject, DifficultyOption } from '../data/subjects.js';
@@ -75,5 +76,5 @@ export async function getReferenceData() {
     }
   }
 
-  return { levels: LEVELS, subjects: SUBJECTS, difficulties: DIFFICULTIES, models };
+  return { levels: LEVELS, subjects: SUBJECTS, difficulties: DIFFICULTIES, models, curriculum: CURRICULUM };
 }

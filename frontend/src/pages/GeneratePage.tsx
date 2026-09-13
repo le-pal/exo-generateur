@@ -32,7 +32,10 @@ export default function GeneratePage() {
 
   const subjects = ref?.subjects ?? [];
   const difficulties = ref?.difficulties ?? [];
-const selectedStudent = students.find(s => String(s.id) === form.student_id);
+  const selectedStudent = students.find(s => String(s.id) === form.student_id);
+  const curriculumTopics = selectedStudent
+    ? (ref?.curriculum[selectedStudent.level]?.[form.subject] ?? [])
+    : [];
   const filteredSubjects = selectedStudent
     ? subjects.filter(s => s.levels === 'all' || (Array.isArray(s.levels) && s.levels.includes(selectedStudent.level)))
     : subjects;
@@ -125,6 +128,24 @@ const selectedStudent = students.find(s => String(s.id) === form.student_id);
           </div>
           <div className="mb-4">
             <label className="label">Point sur lequel porte l'exercice</label>
+            {curriculumTopics.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {curriculumTopics.map(t => {
+                  const active = form.topic === t.label;
+                  return (
+                    <button
+                      key={t.label}
+                      type="button"
+                      title={t.context}
+                      onClick={() => setForm(prev => ({ ...prev, topic: t.label }))}
+                      className={`text-xs rounded-full px-2.5 py-1 border transition-colors ${active ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                    >
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <textarea
               className="input resize-none"
               rows={2}
@@ -132,6 +153,9 @@ const selectedStudent = students.find(s => String(s.id) === form.student_id);
               value={form.topic}
               onChange={set('topic')}
             />
+            {curriculumTopics.length > 0 && (
+              <p className="text-xs text-gray-400 mt-1">Suggestions basées sur le programme officiel — clique pour préremplir.</p>
+            )}
           </div>
           <div>
             <label className="label">Nombre d'exercices</label>
