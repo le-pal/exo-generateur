@@ -268,11 +268,22 @@ function ApiKeysTab() {
 
   const allModels = ref?.models ?? [];
   const currentModel = settings?.['default_model'] ?? '';
+  const currentModelDef = allModels.find(m => m.id === currentModel);
 
   return (
     <div className="space-y-4">
       <div className="card">
-        <h2 className="font-semibold text-gray-800 mb-3">Modèle par défaut</h2>
+        <h2 className="font-semibold text-gray-800 mb-1">Modèle par défaut</h2>
+        {currentModelDef ? (
+          <p className="text-sm text-gray-600 mb-3">
+            Modèle actuel : <span className="font-semibold text-blue-700">{currentModelDef.label}</span>{' '}
+            <span className="text-gray-400">({currentModelDef.id})</span>
+          </p>
+        ) : currentModel ? (
+          <p className="text-sm text-amber-600 mb-3">
+            Modèle actuel : <span className="font-mono">{currentModel}</span> — indisponible (clé du provider manquante ou désactivée ?)
+          </p>
+        ) : null}
         {allModels.length === 0 ? (
           <p className="text-sm text-amber-600">Aucune clé API active — configurez une clé ci-dessous pour accéder aux modèles.</p>
         ) : (
@@ -373,34 +384,65 @@ function ApiKeysTab() {
   );
 }
 
-/** OpenRouter expose des centaines de modèles : une grille de boutons n'est pas praticable,
- *  donc on utilise un champ de recherche natif (datalist) au lieu de la grille des autres providers. */
+/** OpenRouter expose des centaines de modèles : une grille de boutons n'est pas praticable, donc
+ *  on utilise un champ de recherche + une liste déroulante maison (le <datalist> natif du HTML
+ *  n'affiche pas ses suggestions de façon fiable selon les navigateurs). */
+const OPENROUTER_RESULTS_LIMIT = 50;
+
 function OpenRouterModelPicker({ models, currentModel, onSelect }: {
   models: ModelDefinition[];
   currentModel: string;
   onSelect: (modelId: string) => void;
 }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
   const selected = models.find(m => m.id === currentModel);
-  const [query, setQuery] = useState(selected?.label ?? '');
 
-  const handleChange = (value: string) => {
-    setQuery(value);
-    const match = models.find(m => m.label === value || m.id === value);
-    if (match) onSelect(match.id);
-  };
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? models.filter(m => m.label.toLowerCase().includes(q) || m.id.toLowerCase().includes(q))
+    : models;
+  const shown = filtered.slice(0, OPENROUTER_RESULTS_LIMIT);
 
   return (
     <div>
-      <input
-        className="input"
-        list="openrouter-models"
-        placeholder={`Rechercher parmi ${models.length} modèles…`}
-        value={query}
-        onChange={e => handleChange(e.target.value)}
-      />
-      <datalist id="openrouter-models">
-        {models.map(m => <option key={m.id} value={m.label} />)}
-      </datalist>
+      <div className="relative">
+        <input
+          className="input"
+          placeholder={`Rechercher parmi ${models.length} modèles…`}
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+        />
+        {open && (
+          <div className="absolute z-10 mt-1 w-full max-h-64 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg">
+            {shown.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-gray-400">Aucun résultat</p>
+            ) : (
+              shown.map(m => {
+                const active = m.id === currentModel;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={() => { onSelect(m.id); setQuery(''); setOpen(false); }}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${active ? 'bg-blue-50 text-blue-800 font-medium' : 'text-gray-800'}`}
+                  >
+                    {active && '✓ '}{m.label} <span className="text-xs text-gray-400">{m.id}</span>
+                  </button>
+                );
+              })
+            )}
+            {filtered.length > shown.length && (
+              <p className="px-3 py-1.5 text-xs text-gray-400 border-t border-gray-100">
+                +{filtered.length - shown.length} autres résultats — affinez la recherche
+              </p>
+            )}
+          </div>
+        )}
+      </div>
       {selected && (
         <p className="text-xs text-blue-600 mt-1.5 font-semibold">✓ Sélectionné : {selected.label} <span className="text-gray-400 font-normal">({selected.id})</span></p>
       )}
