@@ -25,3 +25,10 @@ export function findBySessionId(sessionId: number): LlmExchangeRow[] {
     .prepare('SELECT * FROM llm_exchanges WHERE session_id = ? ORDER BY id ASC')
     .all(sessionId) as LlmExchangeRow[];
 }
+
+/** All failed exchanges, most recent first — includes ones with no session_id (generation failed before the session could be created). */
+export function findErrors(): LlmExchangeRow[] {
+  return getDb()
+    .prepare('SELECT * FROM llm_exchanges WHERE error_text IS NOT NULL ORDER BY id DESC')
+    .all() as LlmExchangeRow[];
+}

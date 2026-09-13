@@ -85,3 +85,5 @@ export const updatePrompt = (name: string, data: { content?: string; description
   api.put(`/admin/prompts/${name}`, data).then(r => r.data);
 
 export const getReferenceData = (): Promise<ReferenceData> => api.get('/admin/reference').then(r => r.data);
+
+export const getErrorExchanges = (): Promise<LlmExchange[]> => api.get('/admin/exchanges/errors').then(r => r.data);

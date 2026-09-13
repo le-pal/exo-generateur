@@ -7,11 +7,12 @@ import {
   getPrompts, updatePrompt,
   getSettings, updateSettings,
   getReferenceData,
+  getErrorExchanges,
   adminLogin, adminLogout,
 } from '../api/client.ts';
-import type { Student, Prompt, ApiKeyInfo, ModelDefinition } from '../types/api.ts';
+import type { Student, Prompt, ApiKeyInfo, ModelDefinition, LlmExchange } from '../types/api.ts';
 
-const TABS = ['Élèves', 'Modèle & Clés API', 'Prompts'] as const;
+const TABS = ['Élèves', 'Modèle & Clés API', 'Prompts', 'Erreurs'] as const;
 type Tab = typeof TABS[number];
 const ADMIN_TOKEN_KEY = 'admin_token';
 
@@ -65,6 +66,7 @@ export default function AdminPage() {
       {tab === 'Élèves' && <StudentsTab />}
       {tab === 'Modèle & Clés API' && <ApiKeysTab />}
       {tab === 'Prompts' && <PromptsTab />}
+      {tab === 'Erreurs' && <ErrorsTab />}
     </div>
   );
 }
@@ -543,6 +545,107 @@ function PromptsTab() {
           <button className="btn-secondary text-xs ml-4" onClick={() => startEdit(p)}>Modifier</button>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Errors ────────────────────────────────────────────────────────────────────
+
+function downloadJson(filename: string, data: unknown) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function ErrorsTab() {
+  const { data: errors = [], isLoading, refetch, isFetching } = useQuery<LlmExchange[]>({
+    queryKey: ['error-exchanges'],
+    queryFn: getErrorExchanges,
+  });
+  const [expanded, setExpanded] = useState<number | null>(null);
+
+  return (
+    <div className="space-y-4">
+      <div className="card">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="font-semibold text-gray-800">Appels LLM en erreur</h2>
+          <div className="flex items-center gap-2">
+            <button className="btn-ghost text-xs" onClick={() => void refetch()} disabled={isFetching}>
+              {isFetching ? 'Actualisation…' : 'Actualiser'}
+            </button>
+            {errors.length > 0 && (
+              <button
+                className="btn-secondary text-xs"
+                onClick={() => downloadJson(`exo-erreurs-llm-${new Date().toISOString().slice(0, 10)}.json`, errors)}
+              >
+                Exporter tout (raw)
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="text-xs text-gray-400">
+          {errors.length === 0
+            ? 'Aucune erreur enregistrée.'
+            : `${errors.length} appel${errors.length > 1 ? 's' : ''} en erreur (génération ou correction), le plus récent en premier.`}
+        </p>
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-gray-400">Chargement…</p>
+      ) : (
+        <div className="space-y-3">
+          {errors.map(ex => {
+            const isOpen = expanded === ex.id;
+            return (
+              <div key={ex.id} className="card">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`badge ${ex.kind === 'generation' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>{ex.kind}</span>
+                      <span className="badge bg-gray-100 text-gray-600 font-mono">{ex.model}</span>
+                      {ex.session_id ? (
+                        <span className="badge bg-amber-50 text-amber-700">session #{ex.session_id}</span>
+                      ) : (
+                        <span className="badge bg-red-50 text-red-600">pas de session (échec avant création)</span>
+                      )}
+                      <span className="text-xs text-gray-400">{new Date(ex.created_at).toLocaleString('fr-FR')}</span>
+                    </div>
+                    <p className="text-sm text-red-700 mt-2 break-words">{ex.error_text}</p>
+                  </div>
+                  <div className="flex flex-col gap-1.5 flex-shrink-0">
+                    <button className="btn-ghost text-xs whitespace-nowrap" onClick={() => setExpanded(isOpen ? null : ex.id)}>
+                      {isOpen ? 'Masquer' : 'Voir le détail'}
+                    </button>
+                    <button className="btn-ghost text-xs whitespace-nowrap" onClick={() => downloadJson(`exo-erreur-${ex.id}.json`, ex)}>
+                      Exporter
+                    </button>
+                  </div>
+                </div>
+                {isOpen && (
+                  <div className="mt-3 space-y-2">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Requête envoyée</p>
+                      <pre className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs whitespace-pre-wrap break-words max-h-64 overflow-y-auto">{ex.request_text}</pre>
+                    </div>
+                    {ex.response_text && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Réponse brute reçue</p>
+                        <pre className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs whitespace-pre-wrap break-words max-h-64 overflow-y-auto">{ex.response_text}</pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -21,4 +21,6 @@ router.get('/prompts', requireAdmin, ctrl.getPrompts);
 router.get('/prompts/:name', requireAdmin, ctrl.getPrompt);
 router.put('/prompts/:name', requireAdmin, ctrl.updatePrompt);
 
+router.get('/exchanges/errors', requireAdmin, ctrl.getErrorExchanges);
+
 export default router;

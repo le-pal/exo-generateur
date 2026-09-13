@@ -1,13 +1,14 @@
 import * as settingsRepo from '../repositories/settingsRepository.js';
 import * as apiKeyRepo from '../repositories/apiKeyRepository.js';
 import * as promptRepo from '../repositories/promptRepository.js';
+import * as exchangeRepo from '../repositories/exchangeRepository.js';
 import { testProvider, fetchOpenRouterModels } from './llm.js';
 import { LEVELS, SUBJECTS, DIFFICULTIES } from '../data/subjects.js';
 import { MODELS } from '../data/models.js';
 import type { ModelDefinition } from '../data/models.js';
 import { CURRICULUM } from '../data/curriculum.js';
 import { AppError } from '../types/index.js';
-import type { ApiKeyRow, Prompt, LlmProvider } from '../types/index.js';
+import type { ApiKeyRow, Prompt, LlmProvider, LlmExchangeRow } from '../types/index.js';
 import type { Level, Subject, DifficultyOption } from '../data/subjects.js';
 
 // ── Settings ──────────────────────────────────────────────────────────────────
@@ -53,6 +54,12 @@ export function getPrompt(name: string): Prompt {
 export function updatePrompt(name: string, data: { content?: string; description?: string }): Prompt {
   if (!promptRepo.findByName(name)) throw new AppError('Prompt introuvable', 404);
   return promptRepo.update(name, data)!;
+}
+
+// ── LLM exchange errors ──────────────────────────────────────────────────────
+
+export function getErrorExchanges(): LlmExchangeRow[] {
+  return exchangeRepo.findErrors();
 }
 
 // ── Reference data ────────────────────────────────────────────────────────────

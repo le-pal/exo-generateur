@@ -64,3 +64,5 @@ export const testApiKey = handle(async (req) => {
 });
 
 export const getReferenceData = handle(() => adminService.getReferenceData());
+
+export const getErrorExchanges = handle(() => adminService.getErrorExchanges());
