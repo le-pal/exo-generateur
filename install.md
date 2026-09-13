@@ -44,3 +44,13 @@ docker compose down
 ## Configuration
 
 Les clés API et le modèle par défaut se configurent depuis l'interface d'administration : **https://exo.scheffer.top/admin**
+
+L'accès admin est protégé par mot de passe. Avant le premier démarrage, créez un fichier `.env`
+à côté de `docker-compose.yml` :
+
+```
+ADMIN_PASSWORD=<mot de passe fort>
+```
+
+Sans cette variable, la connexion admin est refusée en permanence (échec fermé, pas de mot de
+passe par défaut).

@@ -8,6 +8,7 @@ services:
     environment:
       NODE_ENV: production
       DB_PATH: /data/exo.db
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     volumes:
       - exo_data:/data
     healthcheck:

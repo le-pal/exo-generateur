@@ -9,6 +9,30 @@ const api = axios.create({
   timeout: 120_000,
 });
 
+const ADMIN_TOKEN_KEY = 'admin_token';
+
+api.interceptors.request.use(config => {
+  let token: string | null = null;
+  try { token = localStorage.getItem(ADMIN_TOKEN_KEY); } catch { /* private mode, etc. */ }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+api.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    if (err.response?.status === 401) {
+      try {
+        if (localStorage.getItem(ADMIN_TOKEN_KEY)) {
+          localStorage.removeItem(ADMIN_TOKEN_KEY);
+          window.location.reload();
+        }
+      } catch { /* private mode, etc. */ }
+    }
+    return Promise.reject(err);
+  },
+);
+
 // ── Students ──────────────────────────────────────────────────────────────────
 
 export const getStudents = (): Promise<Student[]> => api.get('/students').then(r => r.data);
@@ -38,6 +62,12 @@ export const getSessionTrace = (sessionId: number): Promise<LlmExchange[]> =>
   api.get(`/sessions/${sessionId}/trace`).then(r => r.data);
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
+
+export const adminLogin = (password: string): Promise<{ token: string }> =>
+  api.post('/admin/login', { password }).then(r => r.data);
+
+export const adminLogout = (): Promise<{ ok: boolean }> =>
+  api.post('/admin/logout').then(r => r.data);
 
 export const getSettings = (): Promise<Record<string, string>> => api.get('/admin/settings').then(r => r.data);
 export const updateSettings = (data: Record<string, string>): Promise<{ ok: boolean }> => api.put('/admin/settings', data).then(r => r.data);

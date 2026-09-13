@@ -1,5 +1,6 @@
 import type { Request, RequestHandler } from 'express';
 import * as adminService from '../services/adminService.js';
+import { login as authLogin, logout as authLogout } from '../services/authService.js';
 import { AppError } from '../types/index.js';
 
 type Handler = (req: Request) => Promise<unknown> | unknown;
@@ -14,6 +15,20 @@ const handle = (fn: Handler): RequestHandler =>
       res.status(status).json({ error: message });
     }
   };
+
+export const login: RequestHandler = (req, res) => {
+  const { password } = req.body as { password?: string };
+  const token = authLogin(password ?? '');
+  if (!token) { res.status(401).json({ error: 'Mot de passe incorrect' }); return; }
+  res.json({ token });
+};
+
+export const logout: RequestHandler = (req, res) => {
+  const header = req.headers['authorization'];
+  const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
+  authLogout(token);
+  res.json({ ok: true });
+};
 
 export const getSettings = handle(() => adminService.getSettings());
 

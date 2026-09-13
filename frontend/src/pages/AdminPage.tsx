@@ -7,15 +7,35 @@ import {
   getPrompts, updatePrompt,
   getSettings, updateSettings,
   getReferenceData,
+  adminLogin, adminLogout,
 } from '../api/client.ts';
 import type { Student, Prompt, ApiKeyInfo, ModelDefinition } from '../types/api.ts';
 
 const TABS = ['Élèves', 'Modèle & Clés API', 'Prompts'] as const;
 type Tab = typeof TABS[number];
+const ADMIN_TOKEN_KEY = 'admin_token';
 
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>('Élèves');
   const navigate = useNavigate();
+  const [token, setToken] = useState<string | null>(() => {
+    try { return localStorage.getItem(ADMIN_TOKEN_KEY); } catch { return null; }
+  });
+
+  const handleLogout = () => {
+    void adminLogout();
+    try { localStorage.removeItem(ADMIN_TOKEN_KEY); } catch { /* private mode, etc. */ }
+    setToken(null);
+  };
+
+  if (!token) {
+    return (
+      <AdminLogin onSuccess={(t) => {
+        try { localStorage.setItem(ADMIN_TOKEN_KEY, t); } catch { /* private mode, etc. */ }
+        setToken(t);
+      }} />
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -24,7 +44,10 @@ export default function AdminPage() {
           <h1 className="text-2xl font-bold text-gray-900">Administration</h1>
           <p className="text-gray-500 text-sm mt-0.5">Configuration de l'application</p>
         </div>
-        <button onClick={() => void navigate('/')} className="btn-ghost text-sm">← Retour</button>
+        <div className="flex items-center gap-3">
+          <button onClick={handleLogout} className="btn-ghost text-sm text-red-500 hover:text-red-700">Déconnexion</button>
+          <button onClick={() => void navigate('/')} className="btn-ghost text-sm">← Retour</button>
+        </div>
       </div>
 
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6">
@@ -42,6 +65,51 @@ export default function AdminPage() {
       {tab === 'Élèves' && <StudentsTab />}
       {tab === 'Modèle & Clés API' && <ApiKeysTab />}
       {tab === 'Prompts' && <PromptsTab />}
+    </div>
+  );
+}
+
+function AdminLogin({ onSuccess }: { onSuccess: (token: string) => void }) {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const { token } = await adminLogin(password);
+      onSuccess(token);
+    } catch {
+      setError('Mot de passe incorrect');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-sm mx-auto mt-16">
+      <button onClick={() => void navigate('/')} className="text-sm text-gray-500 hover:text-gray-700 mb-4">← Retour</button>
+      <div className="card">
+        <h1 className="text-lg font-bold text-gray-900 mb-1">Administration</h1>
+        <p className="text-sm text-gray-500 mb-4">Accès protégé par mot de passe</p>
+        <form onSubmit={e => void handleSubmit(e)} className="space-y-3">
+          <input
+            type="password"
+            className="input"
+            placeholder="Mot de passe"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            autoFocus
+          />
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <button type="submit" className="btn-primary w-full" disabled={loading || !password}>
+            {loading ? 'Connexion…' : 'Se connecter'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
@@ -182,6 +250,9 @@ function ApiKeysTab() {
       updateApiKey(provider, { api_key }),
     onSuccess: (_, { provider }) => {
       void qc.invalidateQueries({ queryKey: ['api-keys'] });
+      // The default-model list depends on which providers have a key set (see getReferenceData),
+      // so it must be refetched too — otherwise a newly saved key's models never appear.
+      void qc.invalidateQueries({ queryKey: ['reference'] });
       setKeyValues(v => ({ ...v, [provider]: '' }));
       void runTest(provider);
     },
