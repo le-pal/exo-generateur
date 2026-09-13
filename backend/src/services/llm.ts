@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { findKeyByProvider } from '../repositories/apiKeyRepository.js';
 import { findByName } from '../repositories/promptRepository.js';
+import * as exchangeRepo from '../repositories/exchangeRepository.js';
 import { AppError } from '../types/index.js';
 import { getProvider } from '../data/models.js';
 import type {
@@ -103,11 +104,66 @@ async function callGemini(apiKey: string, modelId: string, promptText: string, i
   return result.response.text();
 }
 
+async function callOpenRouter(apiKey: string, modelId: string, promptText: string, images: ImagePayload[]): Promise<string> {
+  const content = [
+    { type: 'text', text: promptText },
+    ...images.map(img => ({ type: 'image_url', image_url: { url: `data:${img.mediaType};base64,${img.data}` } })),
+  ];
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://exo.scheffer.top',
+      'X-Title': 'Exo Générateur',
+    },
+    body: JSON.stringify({ model: modelId, messages: [{ role: 'user', content }] }),
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`OpenRouter ${response.status} : ${body.slice(0, 500)}`);
+  }
+  const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+  const text = data.choices?.[0]?.message?.content;
+  if (!text) throw new Error('Réponse OpenRouter vide');
+  return text;
+}
+
+// ── OpenRouter model catalog ─────────────────────────────────────────────────
+
+export interface OpenRouterModel {
+  id: string;
+  name: string;
+  description: string;
+}
+
+let openRouterModelsCache: { models: OpenRouterModel[]; fetchedAt: number } | null = null;
+const OPENROUTER_MODELS_TTL_MS = 60 * 60 * 1000;
+
+/** Public catalog endpoint — no API key required. Cached for an hour to avoid re-fetching on every admin page load. */
+export async function fetchOpenRouterModels(): Promise<OpenRouterModel[]> {
+  if (openRouterModelsCache && Date.now() - openRouterModelsCache.fetchedAt < OPENROUTER_MODELS_TTL_MS) {
+    return openRouterModelsCache.models;
+  }
+  const response = await fetch('https://openrouter.ai/api/v1/models');
+  if (!response.ok) throw new Error(`OpenRouter ${response.status} lors de la récupération des modèles`);
+  const data = (await response.json()) as { data?: { id: string; name?: string; context_length?: number }[] };
+  const models: OpenRouterModel[] = (data.data ?? [])
+    .map(m => ({
+      id: m.id,
+      name: m.name ?? m.id,
+      description: m.context_length ? `${m.context_length.toLocaleString('fr-FR')} tokens de contexte` : '',
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  openRouterModelsCache = { models, fetchedAt: Date.now() };
+  return models;
+}
+
 function callProvider(modelId: string, apiKey: string, promptText: string, images: ImagePayload[]): Promise<string> {
   const provider = getProvider(modelId);
-  return provider === 'gemini'
-    ? callGemini(apiKey, modelId, promptText, images)
-    : callClaude(apiKey, modelId, promptText, images);
+  if (provider === 'gemini') return callGemini(apiKey, modelId, promptText, images);
+  if (provider === 'openrouter') return callOpenRouter(apiKey, modelId, promptText, images);
+  return callClaude(apiKey, modelId, promptText, images);
 }
 
 // ── Provider test ─────────────────────────────────────────────────────────────
@@ -126,10 +182,12 @@ export async function testProvider(provider: LlmProvider, apiKey: string): Promi
         max_tokens: 10,
         messages: [{ role: 'user', content: 'Say "ok"' }],
       });
-    } else {
+    } else if (provider === 'gemini') {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
       await model.generateContent('Say "ok"');
+    } else {
+      await callOpenRouter(apiKey, 'openai/gpt-4o-mini', 'Say "ok"', []);
     }
     return { ok: true };
   } catch (err) {
@@ -154,6 +212,7 @@ interface CorrectExercisesInput {
   model: string;
   subject: string;
   level: string;
+  sessionId: number;
   exercisesAndAnswers: {
     exercise_id: number;
     type: ExerciseType;
@@ -163,7 +222,14 @@ interface CorrectExercisesInput {
   }[];
 }
 
-export async function generateExercises(input: GenerateExercisesInput): Promise<LlmGenerationResult> {
+/**
+ * Generates exercises and returns the created llm_exchanges row id (session_id is
+ * unknown yet — the session doesn't exist until after this succeeds), so the caller
+ * can link the trace to the session once it's created.
+ */
+export async function generateExercises(
+  input: GenerateExercisesInput,
+): Promise<{ result: LlmGenerationResult; exchangeId: number }> {
   const { model, subject, level, topic, difficulty, numExercises, uploadedContent, images } = input;
   const apiKey = resolveApiKey(getProvider(model));
   const template = resolvePromptTemplate('generation');
@@ -172,12 +238,40 @@ export async function generateExercises(input: GenerateExercisesInput): Promise<
     num_exercises: numExercises,
     uploaded_content: uploadedContent,
   });
-  const raw = await callProvider(model, apiKey, promptText, images);
-  return parseJsonResponse<LlmGenerationResult>(raw);
+
+  let raw: string;
+  try {
+    raw = await callProvider(model, apiKey, promptText, images);
+  } catch (err) {
+    exchangeRepo.create({
+      sessionId: null, kind: 'generation', model,
+      requestText: promptText, responseText: null, errorText: extractErrorMessage(err),
+    });
+    throw err;
+  }
+
+  let result: LlmGenerationResult;
+  try {
+    result = parseJsonResponse<LlmGenerationResult>(raw);
+  } catch (err) {
+    exchangeRepo.create({
+      sessionId: null, kind: 'generation', model,
+      requestText: promptText, responseText: raw,
+      errorText: `Réponse JSON invalide : ${err instanceof Error ? err.message : String(err)}`,
+    });
+    throw err;
+  }
+
+  const exchangeId = exchangeRepo.create({
+    sessionId: null, kind: 'generation', model,
+    requestText: promptText, responseText: raw, errorText: null,
+  });
+
+  return { result, exchangeId };
 }
 
 export async function correctExercises(input: CorrectExercisesInput): Promise<LlmCorrectionResult> {
-  const { model, subject, level, exercisesAndAnswers } = input;
+  const { model, subject, level, sessionId, exercisesAndAnswers } = input;
   const apiKey = resolveApiKey(getProvider(model));
   const template = resolvePromptTemplate('correction');
   const formatted = exercisesAndAnswers
@@ -190,6 +284,34 @@ export async function correctExercises(input: CorrectExercisesInput): Promise<Ll
     )
     .join('\n---\n');
   const promptText = renderTemplate(template, { subject, level, exercises_and_answers: formatted });
-  const raw = await callProvider(model, apiKey, promptText, []);
-  return parseJsonResponse<LlmCorrectionResult>(raw);
+
+  let raw: string;
+  try {
+    raw = await callProvider(model, apiKey, promptText, []);
+  } catch (err) {
+    exchangeRepo.create({
+      sessionId, kind: 'correction', model,
+      requestText: promptText, responseText: null, errorText: extractErrorMessage(err),
+    });
+    throw err;
+  }
+
+  let result: LlmCorrectionResult;
+  try {
+    result = parseJsonResponse<LlmCorrectionResult>(raw);
+  } catch (err) {
+    exchangeRepo.create({
+      sessionId, kind: 'correction', model,
+      requestText: promptText, responseText: raw,
+      errorText: `Réponse JSON invalide : ${err instanceof Error ? err.message : String(err)}`,
+    });
+    throw err;
+  }
+
+  exchangeRepo.create({
+    sessionId, kind: 'correction', model,
+    requestText: promptText, responseText: raw, errorText: null,
+  });
+
+  return result;
 }

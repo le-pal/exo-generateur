@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type {
   Student, SessionView, StudentSessionSummary,
-  Prompt, ApiKeyInfo, ReferenceData,
+  Prompt, ApiKeyInfo, ReferenceData, LlmExchange,
 } from '../types/api.ts';
 
 const api = axios.create({
@@ -33,6 +33,9 @@ export const correctSession = (sessionId: number): Promise<SessionView> =>
 
 export const completeSession = (sessionId: number): Promise<{ ok: boolean }> =>
   api.put(`/sessions/${sessionId}/complete`).then(r => r.data);
+
+export const getSessionTrace = (sessionId: number): Promise<LlmExchange[]> =>
+  api.get(`/sessions/${sessionId}/trace`).then(r => r.data);
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
 

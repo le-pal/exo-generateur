@@ -86,6 +86,17 @@ function createSchema(db: Database.Database): void {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS llm_exchanges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER REFERENCES sessions(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      model TEXT NOT NULL,
+      request_text TEXT NOT NULL,
+      response_text TEXT,
+      error_text TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
   `);
 }
 
@@ -179,5 +190,8 @@ RÈGLES :
   }
   if (!db.prepare('SELECT id FROM api_keys WHERE provider = ?').get('gemini')) {
     db.prepare("INSERT INTO api_keys (provider, api_key) VALUES ('gemini', '')").run();
+  }
+  if (!db.prepare('SELECT id FROM api_keys WHERE provider = ?').get('openrouter')) {
+    db.prepare("INSERT INTO api_keys (provider, api_key) VALUES ('openrouter', '')").run();
   }
 }

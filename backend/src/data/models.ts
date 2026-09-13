@@ -1,4 +1,4 @@
-export type LlmProvider = 'claude' | 'gemini';
+export type LlmProvider = 'claude' | 'gemini' | 'openrouter';
 
 export interface ModelDefinition {
   id: string;
@@ -16,6 +16,7 @@ export const MODELS: ModelDefinition[] = [
   { id: 'gemini-2.0-flash',         label: 'Gemini 2.0 Flash',   provider: 'gemini', description: 'Rapide — recommandé' },
   { id: 'gemini-1.5-pro',           label: 'Gemini 1.5 Pro',     provider: 'gemini', description: 'Très capable' },
   { id: 'gemini-1.5-flash',         label: 'Gemini 1.5 Flash',   provider: 'gemini', description: 'Rapide et léger' },
+  // ── OpenRouter : catalogue chargé dynamiquement, voir llm.ts#fetchOpenRouterModels ──
 ];
 
 export function getProvider(modelId: string): LlmProvider {
@@ -23,5 +24,7 @@ export function getProvider(modelId: string): LlmProvider {
   if (def) return def.provider;
   if (modelId.startsWith('claude')) return 'claude';
   if (modelId.startsWith('gemini')) return 'gemini';
+  // OpenRouter model ids are always namespaced "vendor/model", e.g. "openai/gpt-4o".
+  if (modelId.includes('/')) return 'openrouter';
   throw new Error(`Modèle inconnu : ${modelId}`);
 }

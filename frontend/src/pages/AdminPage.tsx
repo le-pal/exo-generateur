@@ -8,7 +8,7 @@ import {
   getSettings, updateSettings,
   getReferenceData,
 } from '../api/client.ts';
-import type { Student, Prompt, ApiKeyInfo } from '../types/api.ts';
+import type { Student, Prompt, ApiKeyInfo, ModelDefinition } from '../types/api.ts';
 
 const TABS = ['Élèves', 'Modèle & Clés API', 'Prompts'] as const;
 type Tab = typeof TABS[number];
@@ -143,8 +143,9 @@ function StudentsTab() {
 // ── API Keys ──────────────────────────────────────────────────────────────────
 
 const PROVIDERS = [
-  { id: 'claude', label: 'Claude (Anthropic)', placeholder: 'sk-ant-api03-…' },
-  { id: 'gemini', label: 'Gemini (Google)', placeholder: 'AIza…' },
+  { id: 'claude', label: 'Claude (Anthropic)', placeholder: 'sk-ant-api03-…', helpUrl: 'console.anthropic.com' },
+  { id: 'gemini', label: 'Gemini (Google)', placeholder: 'AIza…', helpUrl: 'aistudio.google.com' },
+  { id: 'openrouter', label: 'OpenRouter', placeholder: 'sk-or-v1-…', helpUrl: 'openrouter.ai/keys' },
 ] as const;
 
 interface TestState {
@@ -208,19 +209,27 @@ function ApiKeysTab() {
             {PROVIDERS.filter(p => allModels.some(m => m.provider === p.id)).map(p => (
               <div key={p.id}>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">{p.label}</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {allModels.filter(m => m.provider === p.id).map(m => {
-                    const active = currentModel === m.id;
-                    return (
-                      <button key={m.id} onClick={() => modelMutation.mutate(m.id)}
-                        className={`rounded-xl border-2 p-3 text-left transition-all ${active ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                        <div className={`font-medium text-sm ${active ? 'text-blue-800' : 'text-gray-800'}`}>{m.label}</div>
-                        <div className="text-xs text-gray-400 mt-0.5">{m.description}</div>
-                        {active && <div className="text-xs text-blue-600 mt-1 font-semibold">✓ Sélectionné</div>}
-                      </button>
-                    );
-                  })}
-                </div>
+                {p.id === 'openrouter' ? (
+                  <OpenRouterModelPicker
+                    models={allModels.filter(m => m.provider === 'openrouter')}
+                    currentModel={currentModel}
+                    onSelect={(modelId) => modelMutation.mutate(modelId)}
+                  />
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {allModels.filter(m => m.provider === p.id).map(m => {
+                      const active = currentModel === m.id;
+                      return (
+                        <button key={m.id} onClick={() => modelMutation.mutate(m.id)}
+                          className={`rounded-xl border-2 p-3 text-left transition-all ${active ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                          <div className={`font-medium text-sm ${active ? 'text-blue-800' : 'text-gray-800'}`}>{m.label}</div>
+                          <div className="text-xs text-gray-400 mt-0.5">{m.description}</div>
+                          {active && <div className="text-xs text-blue-600 mt-1 font-semibold">✓ Sélectionné</div>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -285,12 +294,45 @@ function ApiKeysTab() {
               </div>
             )}
 
-            <p className="text-xs text-gray-400 mt-2">
-              {p.id === 'claude' ? 'Obtenez votre clé sur console.anthropic.com' : 'Obtenez votre clé sur aistudio.google.com'}
-            </p>
+            <p className="text-xs text-gray-400 mt-2">Obtenez votre clé sur {p.helpUrl}</p>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** OpenRouter expose des centaines de modèles : une grille de boutons n'est pas praticable,
+ *  donc on utilise un champ de recherche natif (datalist) au lieu de la grille des autres providers. */
+function OpenRouterModelPicker({ models, currentModel, onSelect }: {
+  models: ModelDefinition[];
+  currentModel: string;
+  onSelect: (modelId: string) => void;
+}) {
+  const selected = models.find(m => m.id === currentModel);
+  const [query, setQuery] = useState(selected?.label ?? '');
+
+  const handleChange = (value: string) => {
+    setQuery(value);
+    const match = models.find(m => m.label === value || m.id === value);
+    if (match) onSelect(match.id);
+  };
+
+  return (
+    <div>
+      <input
+        className="input"
+        list="openrouter-models"
+        placeholder={`Rechercher parmi ${models.length} modèles…`}
+        value={query}
+        onChange={e => handleChange(e.target.value)}
+      />
+      <datalist id="openrouter-models">
+        {models.map(m => <option key={m.id} value={m.label} />)}
+      </datalist>
+      {selected && (
+        <p className="text-xs text-blue-600 mt-1.5 font-semibold">✓ Sélectionné : {selected.label} <span className="text-gray-400 font-normal">({selected.id})</span></p>
+      )}
     </div>
   );
 }

@@ -93,8 +93,19 @@ export interface DifficultyOption {
 export interface ModelDefinition {
   id: string;
   label: string;
-  provider: 'claude' | 'gemini';
+  provider: 'claude' | 'gemini' | 'openrouter';
   description: string;
+}
+
+export interface LlmExchange {
+  id: number;
+  session_id: number | null;
+  kind: 'generation' | 'correction';
+  model: string;
+  request_text: string;
+  response_text: string | null;
+  error_text: string | null;
+  created_at: string;
 }
 
 export interface ReferenceData {

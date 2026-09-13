@@ -9,7 +9,7 @@ export interface Student {
 }
 
 export type SessionStatus = 'in_progress' | 'completed' | 'corrected';
-export type LlmProvider = 'claude' | 'gemini';
+export type LlmProvider = 'claude' | 'gemini' | 'openrouter';
 export type LlmModel = LlmProvider;
 export type Difficulty = 'facile' | 'normal' | 'difficile';
 export type ExerciseType = 'mcq' | 'text' | 'number' | 'fill_blank';
@@ -111,6 +111,21 @@ export interface LlmCorrectionResult {
 export interface ImagePayload {
   mediaType: string;
   data: string; // base64
+}
+
+// ── Raw LLM exchange trace (debugging) ──────────────────────────────────────────
+
+export type LlmExchangeKind = 'generation' | 'correction';
+
+export interface LlmExchangeRow {
+  id: number;
+  session_id: number | null;
+  kind: LlmExchangeKind;
+  model: string;
+  request_text: string;
+  response_text: string | null;
+  error_text: string | null;
+  created_at: string;
 }
 
 // ── Error ─────────────────────────────────────────────────────────────────────

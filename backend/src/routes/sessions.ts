@@ -10,6 +10,7 @@ const upload = multer({
 const router = Router();
 
 router.get('/:id', ctrl.getOne);
+router.get('/:id/trace', ctrl.getTrace);
 router.post('/', upload.array('images', 5), ctrl.create);
 router.put('/:sessionId/exercises/:exerciseId/answer', ctrl.saveAnswer);
 router.post('/:id/correct', ctrl.correct);

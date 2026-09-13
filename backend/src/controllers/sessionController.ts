@@ -18,6 +18,8 @@ const handle = (fn: Handler): RequestHandler =>
 
 export const getOne = handle((req) => sessionService.getSession(Number(req.params['id'])));
 
+export const getTrace = handle((req) => sessionService.getSessionTrace(Number(req.params['id'])));
+
 export const create: RequestHandler = async (req, res) => {
   try {
     const files = (req.files as Express.Multer.File[] | undefined) ?? [];

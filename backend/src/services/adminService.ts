@@ -1,9 +1,10 @@
 import * as settingsRepo from '../repositories/settingsRepository.js';
 import * as apiKeyRepo from '../repositories/apiKeyRepository.js';
 import * as promptRepo from '../repositories/promptRepository.js';
-import { testProvider } from './llm.js';
+import { testProvider, fetchOpenRouterModels } from './llm.js';
 import { LEVELS, SUBJECTS, DIFFICULTIES } from '../data/subjects.js';
 import { MODELS } from '../data/models.js';
+import type { ModelDefinition } from '../data/models.js';
 import { AppError } from '../types/index.js';
 import type { ApiKeyRow, Prompt, LlmProvider } from '../types/index.js';
 import type { Level, Subject, DifficultyOption } from '../data/subjects.js';
@@ -55,10 +56,24 @@ export function updatePrompt(name: string, data: { content?: string; description
 
 // ── Reference data ────────────────────────────────────────────────────────────
 
-export function getReferenceData() {
+export async function getReferenceData() {
   const activeProviders = new Set(
     apiKeyRepo.findAll().filter(k => k.active === 1 && k.is_set === 1).map(k => k.provider),
   );
-  const models = MODELS.filter(m => activeProviders.has(m.provider));
+  const models: ModelDefinition[] = MODELS.filter(m => activeProviders.has(m.provider));
+
+  if (activeProviders.has('openrouter')) {
+    try {
+      const openRouterModels = await fetchOpenRouterModels();
+      models.push(
+        ...openRouterModels.map(m => ({
+          id: m.id, label: m.name, provider: 'openrouter' as const, description: m.description,
+        })),
+      );
+    } catch {
+      // Catalogue OpenRouter indisponible — on garde les modèles Claude/Gemini déjà résolus.
+    }
+  }
+
   return { levels: LEVELS, subjects: SUBJECTS, difficulties: DIFFICULTIES, models };
 }

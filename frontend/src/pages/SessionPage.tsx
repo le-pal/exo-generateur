@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSession, saveAnswer, correctSession } from '../api/client.ts';
+import { getSession, saveAnswer, correctSession, getSessionTrace } from '../api/client.ts';
 import ExerciseCard from '../components/ExerciseCard.tsx';
 import type { SessionView } from '../types/api.ts';
 import type { AxiosError } from 'axios';
@@ -45,6 +45,25 @@ export default function SessionPage() {
     correctMutation.mutate();
   };
 
+  const [exporting, setExporting] = useState(false);
+  const handleExportTrace = async () => {
+    setExporting(true);
+    try {
+      const trace = await getSessionTrace(Number(id));
+      const blob = new Blob([JSON.stringify(trace, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `exo-session-${id}-trace.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (isLoading) return <LoadingState />;
   if (isError || !session) return <div className="text-red-600">Session introuvable</div>;
 
@@ -58,7 +77,13 @@ export default function SessionPage() {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-6">
-        <button onClick={() => void navigate(-1)} className="text-sm text-gray-500 hover:text-gray-700 mb-3 flex items-center gap-1">← Retour</button>
+        <div className="flex items-center justify-between mb-3">
+          <button onClick={() => void navigate(-1)} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">← Retour</button>
+          <button onClick={() => void handleExportTrace()} disabled={exporting}
+            className="text-xs text-gray-400 hover:text-gray-600 underline disabled:opacity-50">
+            {exporting ? 'Export…' : 'Exporter les échanges (raw)'}
+          </button>
+        </div>
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-xl font-bold text-gray-900">{session.subject} — {session.topic}</h1>

@@ -3,6 +3,7 @@ import * as exerciseRepo from '../repositories/exerciseRepository.js';
 import * as answerRepo from '../repositories/answerRepository.js';
 import * as studentRepo from '../repositories/studentRepository.js';
 import * as settingsRepo from '../repositories/settingsRepository.js';
+import * as exchangeRepo from '../repositories/exchangeRepository.js';
 import { generateExercises, correctExercises } from './llm.js';
 import { AppError } from '../types/index.js';
 import type {
@@ -11,6 +12,7 @@ import type {
   LlmModel,
   Difficulty,
   ImagePayload,
+  LlmExchangeRow,
 } from '../types/index.js';
 
 interface GenerateSessionInput {
@@ -52,7 +54,7 @@ export async function generateSession(input: GenerateSessionInput): Promise<Sess
   const defaultModel = (settingsRepo.findByKey('default_model') ?? 'claude') as LlmModel;
   const selectedModel: LlmModel = model ?? defaultModel;
 
-  const llmResult = await generateExercises({
+  const { result: llmResult, exchangeId } = await generateExercises({
     model: selectedModel,
     subject,
     level: student.level,
@@ -68,6 +70,7 @@ export async function generateSession(input: GenerateSessionInput): Promise<Sess
   }
 
   const session = sessionRepo.create({ student_id, subject, topic, difficulty, num_exercises, model: selectedModel });
+  exchangeRepo.attachSession(exchangeId, session.id);
   exerciseRepo.createMany(session.id, llmResult.exercises);
 
   return buildSessionView(session.id);
@@ -99,6 +102,7 @@ export async function correctSession(sessionId: number): Promise<SessionView> {
     model: session.model,
     subject: session.subject,
     level: student.level,
+    sessionId,
     exercisesAndAnswers,
   });
 
@@ -115,4 +119,9 @@ export async function correctSession(sessionId: number): Promise<SessionView> {
 export function completeSession(sessionId: number): void {
   if (!sessionRepo.findById(sessionId)) throw new AppError('Session introuvable', 404);
   sessionRepo.updateStatus(sessionId, 'completed');
+}
+
+export function getSessionTrace(sessionId: number): LlmExchangeRow[] {
+  if (!sessionRepo.findById(sessionId)) throw new AppError('Session introuvable', 404);
+  return exchangeRepo.findBySessionId(sessionId);
 }
