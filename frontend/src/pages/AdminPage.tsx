@@ -340,6 +340,9 @@ function ApiKeysTab() {
                   placeholder={keyRow?.is_set ? '••••••••••••••••' : p.placeholder}
                   value={currentVal}
                   onChange={e => setKeyValues(v => ({ ...v, [p.id]: e.target.value }))}
+                  autoComplete="off"
+                  data-1p-ignore
+                  data-lpignore="true"
                 />
                 <button type="button" onClick={() => setShowKey(s => ({ ...s, [p.id]: !s[p.id] }))}
                   className="absolute right-2 top-2 text-gray-400 hover:text-gray-600">
@@ -408,12 +411,21 @@ function OpenRouterModelPicker({ models, currentModel, onSelect }: {
     <div>
       <div className="relative">
         <input
+          type="search"
+          name="openrouter-model-search"
+          id="openrouter-model-search"
           className="input"
-          placeholder={`Rechercher parmi ${models.length} modèles…`}
+          placeholder={`Chercher un modèle OpenRouter parmi ${models.length}…`}
           value={query}
           onChange={e => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          data-1p-ignore
+          data-lpignore="true"
         />
         {open && (
           <div className="absolute z-10 mt-1 w-full max-h-64 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg">
